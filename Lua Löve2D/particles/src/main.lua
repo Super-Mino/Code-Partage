@@ -304,6 +304,7 @@ end
 
 --======================================================================================
 function love.load()
+	love.window.setTitle("Particles with Löve2D")
 	love.graphics.setBackgroundColor(0.2, 0.2, 0.2, 1)
 end
 
