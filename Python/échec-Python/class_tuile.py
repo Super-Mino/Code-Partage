@@ -16,4 +16,6 @@ class Tuile:
 		self.état = état
 		self.type = _type
 		self.pion = None
+		self.nom_colonne = None
+		self.nom_ligne = None 
 

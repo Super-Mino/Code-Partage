@@ -1,6 +1,7 @@
 import pygame
 from utils import*
 
+
 class Pion:
 	#classe mère des pions
 
@@ -9,15 +10,61 @@ class Pion:
 		self.type = _type # = quel type de pion
 		self.rect_src = [0,0,0,0]
 		self.couleur = couleur 
+		self.dessiner_en_petit = False 
+		self.petit_sprite = None
+		self.petit_sprite_chargé = False
+		self.état = EN_JEU
+		self.cacher = False
 		#ici couleur est un nombre : 1 -> blanc, 2 -> noir
 
 
 	def show(self, surface_écran, tileset): 
 
+		if self.cacher:
+			return 
+
 		x = self.pos[0] * BLOC + échiquier_coo[0]
 		y = self.pos[1] * BLOC + échiquier_coo[1]
 
-		surface_écran.blit(tileset, (x, y), self.rect_src)
+		if self.état == CAPTURE:
+			x = self.pos[0] * DEMI_BLOC + prison_coo(self.couleur)[0]
+			y = self.pos[1] * DEMI_BLOC + prison_coo(self.couleur)[1]
+
+		if self.dessiner_en_petit: 
+			if self.petit_sprite_chargé == False:
+				self.charger_petit_sprite(tileset)
+			surface_écran.blit(self.petit_sprite, (x, y))
+		else:
+			surface_écran.blit(tileset, (x, y), self.rect_src)
+
+
+
+
+	def X(self):
+		return self.pos[0]
+
+	def Y(self):
+		return self.pos[1]
+
+
+
+
+	def charger_petit_sprite(self, tileset):
+		#crée la surface avec les mêmes dimensions que les sprites de base 
+		self.petit_sprite = pygame.Surface((BLOC, BLOC)) 
+		#rempli avec une couleur de fond 
+		self.petit_sprite.fill((246, 8, 10))
+		#rend ce fond transparent pour ne laisser visible que ce qu'on va blitter 
+		self.petit_sprite.set_colorkey((246, 8, 10))
+		#dessine la pièce dans la surface 
+		self.petit_sprite.blit(tileset, [0, 0], self.rect_src) 
+		#reduit la taille de la surface par deux
+		self.petit_sprite = pygame.transform.scale(self.petit_sprite, [DEMI_BLOC, DEMI_BLOC])
+		#confirme la réussite du processus 
+		self.petit_sprite_chargé = True
+
+
+
 
 
 
@@ -35,19 +82,30 @@ class Roi(Pion):
 
 		niveau = 0
 		if couleur == BLANC :
-			niveau = 64
+			niveau = BLOC
 		elif couleur == NOIR : 
 			niveau = 0
 
-		self.rect_src = [0, niveau, 64, 64]
+		self.rect_src = [0, niveau, BLOC, BLOC]
+		self.le_premier_coup_est_joué = False 
+
 
 
 
 	def mouv_dispo(self, echiquier):
 
+		#Cette foncton (s'applique à tous les pions), donne toutes les solutions possibles
+		#du pion au moment courant.  
+
 		mouv_possible = []
-		x = self.pos[0]
-		y = self.pos[1]
+		x = self.X()
+		y = self.Y()
+
+		#Pour des vérifications dans certaines parties de l'app, le pion peut être mis hors jeu 
+		if x == CASE_HORS_JEU_X and y == CASE_HORS_JEU_Y:
+			return mouv_possible
+
+			
 
 		#vérification des case autour de lui comme dans les règles 
 		for i in range(-1, 2):
@@ -104,19 +162,25 @@ class Reine(Pion):
 
 		niveau = 0
 		if couleur == BLANC :
-			niveau = 64
+			niveau = BLOC
 		elif couleur == NOIR : 
 			niveau = 0
 
-		self.rect_src = [1*64, niveau, 64, 64]
+		self.rect_src = [1*BLOC, niveau, BLOC, BLOC]
 
 
 
 	def mouv_dispo(self, echiquier):
 
 		mouv_possible = []
-		x = self.pos[0]
-		y = self.pos[1]
+		x = self.X()
+		y = self.Y()
+
+		#Pour des vérifications dans certaines parties de l'app, le pion peut être mis hors jeu 
+		if x == CASE_HORS_JEU_X and y == CASE_HORS_JEU_Y:
+			return mouv_possible
+
+
 
 		#vérification de la colone qui va en haut. Au maximum si tout est vide et qu'elle
 		#est aux extrémité : elle ne peut parcourrir que jusqu'à 7 cases 
@@ -293,20 +357,25 @@ class Cavalier(Pion):
 
 		niveau = 0
 		if couleur == BLANC :
-			niveau = 64
+			niveau = BLOC
 		elif couleur == NOIR : 
 			niveau = 0
 
-		self.rect_src = [4*64, niveau, 64, 64]
+		self.rect_src = [4*BLOC, niveau, BLOC, BLOC]
 
 
 
 	def mouv_dispo(self, echiquier):
 
 		mouv_possible = []
-		x = self.pos[0]
-		y = self.pos[1]
+		x = self.X()
+		y = self.Y()
 
+		#Pour des vérifications dans certaines parties de l'app, le pion peut être mis hors jeu 
+		if x == CASE_HORS_JEU_X and y == CASE_HORS_JEU_Y:
+			return mouv_possible
+
+			
 		#pour le cavalier c'est simple, il n'y a que 8 spots possible. On teste les quatres
 		#et c'est bouclé :)
 
@@ -447,20 +516,25 @@ class Fou(Pion):
 
 		niveau = 0
 		if couleur == BLANC :
-			niveau = 64
+			niveau = BLOC
 		elif couleur == NOIR : 
 			niveau = 0
 
-		self.rect_src = [3*64, niveau, 64, 64]
+		self.rect_src = [3*BLOC, niveau, BLOC, BLOC]
 
 
 
 	def mouv_dispo(self, echiquier):
 		
 		mouv_possible = []
-		x = self.pos[0]
-		y = self.pos[1]
+		x = self.X()
+		y = self.Y()
 
+		#Pour des vérifications dans certaines parties de l'app, le pion peut être mis hors jeu 
+		if x == CASE_HORS_JEU_X and y == CASE_HORS_JEU_Y:
+			return mouv_possible
+
+			
 		#pour le fou c est simble, c'est la partie diagonale de la reine. Copié collé et 
 		#c'est réglé :)
 
@@ -566,20 +640,27 @@ class Tour(Pion):
 
 		niveau = 0
 		if couleur == BLANC :
-			niveau = 64
+			niveau = BLOC
 		elif couleur == NOIR : 
 			niveau = 0
 
-		self.rect_src = [2*64, niveau, 64, 64]
+		self.rect_src = [2*BLOC, niveau, BLOC, BLOC]
+		self.le_premier_coup_est_joué = False
+		self.côté = INDEFINI
 
 
 
 	def mouv_dispo(self, echiquier):
 		
 		mouv_possible = []
-		x = self.pos[0]
-		y = self.pos[1]
+		x = self.X()
+		y = self.Y()
 
+		#Pour des vérifications dans certaines parties de l'app, le pion peut être mis hors jeu 
+		if x == CASE_HORS_JEU_X and y == CASE_HORS_JEU_Y:
+			return mouv_possible
+
+			
 		#Et pour la tour c'est la même chose mais du côté vertical/horizontal
 
 		#vers le haut
@@ -677,33 +758,36 @@ class Guerrier(Pion):
 
 		niveau = 0
 		if couleur == BLANC :
-			niveau = 64
+			niveau = BLOC
 		elif couleur == NOIR : 
 			niveau = 0
 
-		self.rect_src = [5*64, niveau, 64, 64]
+		self.rect_src = [5*BLOC, niveau, BLOC, BLOC]
 		self.le_premier_coup_est_joué = False
+		self.sens_d_attaque = INDEFINI
+		self.demande_promotion = False 
+		self.potentiel_prise_en_passant = None
 
 
 
 	def mouv_dispo(self, echiquier):
 		
 		mouv_possible = []
-		x = self.pos[0]
-		y = self.pos[1]
+		x = self.X()
+		y = self.Y()
 
+		#Pour des vérifications dans certaines parties de l'app, le pion peut être mis hors jeu 
+		if x == CASE_HORS_JEU_X and y == CASE_HORS_JEU_Y:
+			return mouv_possible
 
-		#Par souci de simplicité je vais garder le même schéma tout le temps.
-		#C'est à dire les noirs en haut, les blancs en bas ; ce qui fait que le devant 
-		#des noirs est toujours vers le bas et le devant des blancs vers le haut.
-		#Ainsi le mouvement des geurriers sera plus simple à coder il me semble. 
+			
 
 		direction = 1
 
-		if self.couleur == NOIR:
-			direction = 1
-		elif self.couleur == BLANC:
+		if self.sens_d_attaque == HAUT:
 			direction = -1
+		elif self.sens_d_attaque == BAS:
+			direction = 1 
 
 
 		_y = y + direction
@@ -734,6 +818,7 @@ class Guerrier(Pion):
 			if echiquier[_y][_x].état != VIDE and echiquier[_y][_x].état != self.couleur:
 			# = si c est un adversair sur la diagonale 2 devant soit
 				 mouv_possible.append([_x, _y])
+
 
 
 
