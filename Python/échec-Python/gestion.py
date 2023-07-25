@@ -597,21 +597,21 @@ def init_les_pions():
 	Echiquier[0][7].état = cdheb.couleur_des_hauts; tourDN.côté = DROITE; Tours.append(tourDN)
 
 
-	# for x in range(8):
-	# 	guerrierN = Guerrier([x, 1], cdheb.couleur_des_hauts)
-	# 	guerrierN.sens_d_attaque = BAS
-	# 	Echiquier[1][x].pion = guerrierN
-	# 	liste_des_pions.append(guerrierN)
-	# 	Echiquier[1][x].état = cdheb.couleur_des_hauts
-	# 	Guerriers.append(guerrierN)
+	for x in range(8):
+		guerrierN = Guerrier([x, 1], cdheb.couleur_des_hauts)
+		guerrierN.sens_d_attaque = BAS
+		Echiquier[1][x].pion = guerrierN
+		liste_des_pions.append(guerrierN)
+		Echiquier[1][x].état = cdheb.couleur_des_hauts
+		Guerriers.append(guerrierN)
 
-	# for x in range(8):
-	# 	guerrierS = Guerrier([x, 6], cdheb.couleur_des_bas)
-	# 	guerrierS.sens_d_attaque = HAUT 
-	# 	Echiquier[6][x].pion = guerrierS
-	# 	liste_des_pions.append(guerrierS)
-	# 	Echiquier[6][x].état = cdheb.couleur_des_bas
-	# 	Guerriers.append(guerrierS)
+	for x in range(8):
+		guerrierS = Guerrier([x, 6], cdheb.couleur_des_bas)
+		guerrierS.sens_d_attaque = HAUT 
+		Echiquier[6][x].pion = guerrierS
+		liste_des_pions.append(guerrierS)
+		Echiquier[6][x].état = cdheb.couleur_des_bas
+		Guerriers.append(guerrierS)
 
 
 	#la tour gauche sud 
