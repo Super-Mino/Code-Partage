@@ -1,1 +1,0 @@
-Compilée avec gcc version 13.0.1 20230402 (experimental) (MinGW-W64 x86_64-msvcrt-mcf-seh, built by Brecht Sanders).
