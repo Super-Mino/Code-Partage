@@ -1,0 +1,7 @@
+Don't forget to download dependencies. 
+N'oubliez pas de télécharger les dépendances. 
+
+https://love2d.org/
+
+or 
+
