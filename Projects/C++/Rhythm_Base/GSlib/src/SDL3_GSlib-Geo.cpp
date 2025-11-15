@@ -196,7 +196,7 @@ void Line::draw(SDL_Renderer* ren, const SDL_FColor& color, int win_w, int win_h
 		y2 = ((-(a*x2))-c)/b;
 	}
 
-	gs::drawLine(ren, gs::Vec2i(x1,y1), gs::Vec2i(x2,y2), color);
+	gs::drawLine(ren, gs::Vec2f(x1,y1), gs::Vec2f(x2,y2), color);
 }
 
 bool Line::intersect(const Line& ln) const
@@ -285,7 +285,7 @@ Line_Segment::Line_Segment(const gs::Vec2d& o, const gs::Vec2d& dir_vector, cons
 
 void Line_Segment::draw(SDL_Renderer* ren, const SDL_FColor& color) const
 {
-	gs::drawLine(ren, gs::Vec2i(int(a.x), int(a.y)), gs::Vec2i(int(z.x), int(z.y)), color);
+	gs::drawLine(ren, a.to<float>(), z.to<float>(), color);
 }
 
 
@@ -632,14 +632,14 @@ bool drawRoundedRect(SDL_Renderer* ren, const SDL_FRect& rect, float percent, co
 	}
 	else
 	{
-		Vec2i line_1_pt1 = Vec2f(main.x, main.y).to<int>();
-		Vec2i line_1_pt2 = Vec2f(main.x+main.w-1, main.y).to<int>();
-		Vec2i line_2_pt1 = Vec2f(right_side.x+margin-1, right_side.y).to<int>();
-		Vec2i line_2_pt2 = Vec2f(right_side.x+margin-1, right_side.y+right_side.h-1).to<int>();
-		Vec2i line_3_pt1 = Vec2f(main.x, main.y+main.h-1).to<int>();
-		Vec2i line_3_pt2 = Vec2f(main.x+main.w-1, main.y+main.h-1).to<int>();
-		Vec2i line_4_pt1 = Vec2f(left_side.x, left_side.y).to<int>();
-		Vec2i line_4_pt2 = Vec2f(left_side.x, left_side.y+left_side.h-1).to<int>();
+		Vec2f line_1_pt1 = Vec2f(main.x, main.y);
+		Vec2f line_1_pt2 = Vec2f(main.x+main.w-1, main.y);
+		Vec2f line_2_pt1 = Vec2f(right_side.x+margin-1, right_side.y);
+		Vec2f line_2_pt2 = Vec2f(right_side.x+margin-1, right_side.y+right_side.h-1);
+		Vec2f line_3_pt1 = Vec2f(main.x, main.y+main.h-1);
+		Vec2f line_3_pt2 = Vec2f(main.x+main.w-1, main.y+main.h-1);
+		Vec2f line_4_pt1 = Vec2f(left_side.x, left_side.y);
+		Vec2f line_4_pt2 = Vec2f(left_side.x, left_side.y+left_side.h-1);
 
 		success = success & drawLine(ren, line_1_pt1, line_1_pt2, col);
 		success = success & drawLine(ren, line_2_pt1, line_2_pt2, col);
@@ -971,13 +971,13 @@ float quality = 50;
 			pt1.y = std::sin(begin_angle)*min_radius_y +offset.y;
 			pt2.x = std::cos(begin_angle)*radii.x +offset.x;
 			pt2.y = std::sin(begin_angle)*radii.y +offset.y;
-			drawLine(ren, pt1.to<int>(), pt2.to<int>(), col);
+			drawLine(ren, pt1, pt2, col);
 
 			pt1.x = std::cos(final_angle)*min_radius_x +offset.x;
 			pt1.y = std::sin(final_angle)*min_radius_y +offset.y;
 			pt2.x = std::cos(final_angle)*radii.x +offset.x;
 			pt2.y = std::sin(final_angle)*radii.y +offset.y;
-			drawLine(ren, pt1.to<int>(), pt2.to<int>(), col);
+			drawLine(ren, pt1, pt2, col);
 		}
 	}
 
@@ -1139,15 +1139,15 @@ bool drawShape(SDL_Renderer* ren, Shape_P s)
 	else
 	if(s.type == Shape_P::S) //Segment.
 	{
-		Vec2i pt1 = {static_cast<int>(_X(s.pos.x)), static_cast<int>(_Y(s.pos.y))};
-		Vec2i pt2 = {static_cast<int>(_X(s.pos2.x)), static_cast<int>(_Y(s.pos2.y))};
+		Vec2f pt1 = {_X(s.pos.x), _Y(s.pos.y)};
+		Vec2f pt2 = {_X(s.pos2.x), _Y(s.pos2.y)};
 
 		if(s.rot_ang != 0)
 		{
 			Vec2i rot_center = {static_cast<int>(_X(s.rot_pt.x)), static_cast<int>(_Y(s.rot_pt.y))};
 
-			pt1 = rotatePoint(rot_center.x, rot_center.y, pt1.x, pt1.y, s.rot_ang, s.clockwise).to<int>();
-			pt2 = rotatePoint(rot_center.x, rot_center.y, pt2.x, pt2.y, s.rot_ang, s.clockwise).to<int>();
+			pt1 = rotatePoint(rot_center.x, rot_center.y, pt1.x, pt1.y, s.rot_ang, s.clockwise).to<float>();
+			pt2 = rotatePoint(rot_center.x, rot_center.y, pt2.x, pt2.y, s.rot_ang, s.clockwise).to<float>();
 		}
 
 		success = success & drawLine(ren, pt1, pt2, s.color, bm);

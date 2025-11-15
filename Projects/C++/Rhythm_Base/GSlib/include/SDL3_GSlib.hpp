@@ -1,7 +1,7 @@
 #ifndef _SDL3_GSlib_HPP_
 #define _SDL3_GSlib_HPP_
 //27/08/24
-//version modifiée le 25/10/25 (à moins d'oubli de modifier cette ligne ou autre). Première version de cette lib : 18/11/22
+//version modifiée le 28/10/25 (à moins d'oubli de modifier cette ligne ou autre). Première version de cette lib : 18/11/22
 /*
 Mises à jour:
 22/07/23:	Ajout de 'Vec2si' et 'Vec2sui', update des 'drawTile()' partout.
@@ -179,10 +179,15 @@ class Mouse_Tracker
 		bool isMultiClick(char* out__clicks=nullptr) const;
 		bool isDoubleClick() const;
 		void incrMultiClickCount(char val);
+		void setTargetBtn(bool is_left);
+		bool targetBtnIsLeft() const;
+		bool clickedDown() const;
+		bool clickedUp() const;
 		
 		
 	protected:
-	
+		
+		bool       m_target_btn_is_left=true;
 		gs::Vec2f  m_pos_when_down;
 		bool       m_is_down=false;
 		gs::Vec2f  m_pos_when_up;
@@ -454,8 +459,8 @@ bool drawRect(SDL_Renderer* ren, const SDL_FRect& rect, const SDL_FColor* col=nu
 bool drawRect(SDL_Renderer* ren, const SDL_FRect* rect, const SDL_FColor& col, const bool& fill=false, SDL_BlendMode* b_mode=nullptr);
 bool drawRect(SDL_Renderer* ren, const SDL_FRect& rect, const SDL_FColor& col, const bool& fill=false, SDL_BlendMode* b_mode=nullptr);
 
-
-bool drawLine(SDL_Renderer* ren, const Vec2i& pt1, const Vec2i& pt2, const SDL_FColor& col, SDL_BlendMode* b_mode=nullptr);
+bool drawLine(SDL_Renderer* ren, const Vec2f& pt1, const Vec2f& pt2, const SDL_FColor& col, SDL_BlendMode* b_mode=nullptr);
+//bool drawLine(SDL_Renderer* ren, const Vec2i& pt1, const Vec2i& pt2, const SDL_FColor& col, SDL_BlendMode* b_mode=nullptr);
 
 double dt();
 

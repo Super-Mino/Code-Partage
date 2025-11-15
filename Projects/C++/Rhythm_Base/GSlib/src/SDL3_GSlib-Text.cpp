@@ -4,7 +4,7 @@
 //#include <algorithm>
 //#include <print>
 
-//Maj : 21/10/25 (à moins d'oubli de modifier cette ligne ou autre).
+//Maj : 28/10/25 (à moins d'oubli de modifier cette ligne ou autre).
 
 
 
@@ -1392,8 +1392,8 @@ bool Text_Line::show(SDL_Renderer* ren, int start_x, char tabulation_size, Vec2i
 			if(is_visible)
 			if(cursor_x < max_x)
 			{
-				drawLine(ren, {cursor_x-1, cursor_up_y}, {cursor_x-1, cursor_down_y}, cursor_col);
-				drawLine(ren, {cursor_x, cursor_up_y}, {cursor_x, cursor_down_y}, cursor_col);
+				drawLine(ren, {static_cast<float>(cursor_x-1), static_cast<float>(cursor_up_y)}, {static_cast<float>(cursor_x-1), static_cast<float>(cursor_down_y)}, cursor_col);
+				drawLine(ren, {static_cast<float>(cursor_x), static_cast<float>(cursor_up_y)}, {static_cast<float>(cursor_x), static_cast<float>(cursor_down_y)}, cursor_col);
 			}
 			
 			show_cursor = false;
@@ -1417,8 +1417,8 @@ bool Text_Line::show(SDL_Renderer* ren, int start_x, char tabulation_size, Vec2i
 		{
 			if(not (int(m_text.size()) <= 1 and start_x_count < start_x)) //Si le texte ne comporte rien ou seulement le caractère de fin de ligne (le curseur est alors au début), et que le point de commencement n'est pas atteint : on affiche pas le curseur (car masqué par le scrolling du start_x).
 			{
-				drawLine(ren, {cursor_x-1, cursor_up_y}, {cursor_x-1, cursor_down_y}, cursor_col);
-				drawLine(ren, {cursor_x, cursor_up_y}, {cursor_x, cursor_down_y}, cursor_col);
+				drawLine(ren, {static_cast<float>(cursor_x-1), static_cast<float>(cursor_up_y)}, {static_cast<float>(cursor_x-1), static_cast<float>(cursor_down_y)}, cursor_col);
+				drawLine(ren, {static_cast<float>(cursor_x), static_cast<float>(cursor_up_y)}, {static_cast<float>(cursor_x), static_cast<float>(cursor_down_y)}, cursor_col);
 			}
 		}
 	}

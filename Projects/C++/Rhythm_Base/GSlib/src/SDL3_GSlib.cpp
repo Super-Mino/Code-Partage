@@ -4,7 +4,7 @@
 #include <bitset>
 
 
-//Version modifiée le 25/10/25 (à moins d'oubli de modifier cette ligne ou autre).
+//Version modifiée le 28/10/25 (à moins d'oubli de modifier cette ligne ou autre).
 
 gs::Game *ThisGame = nullptr; 
 
@@ -159,10 +159,23 @@ void Mouse_Tracker::incrMultiClickCount(char val)
 }
 
 
+void Mouse_Tracker::setTargetBtn(bool is_left) {m_target_btn_is_left = is_left;}
+
+bool Mouse_Tracker::targetBtnIsLeft() const {return m_target_btn_is_left;}
+
+bool Mouse_Tracker::clickedDown() const {return m_is_down and not m_previously_down;}
+
+bool Mouse_Tracker::clickedUp() const {return not m_is_down and m_previously_down;}
+
+
 	
 void Mouse_Tracker::processEvent(SDL_Event& ev)
 {
-	if(ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN and ev.button.button == SDL_BUTTON_LEFT)
+	Uint8 target_btn = SDL_BUTTON_LEFT;
+	if(not m_target_btn_is_left) 
+		target_btn = SDL_BUTTON_RIGHT;
+	
+	if(ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN and ev.button.button == target_btn)
 	{
 		m_is_down = true;
 		m_pos_when_down.x = ev.button.x;
@@ -176,7 +189,7 @@ void Mouse_Tracker::processEvent(SDL_Event& ev)
 		m_clicks_count = ev.button.clicks;
 	}
 	else 
-	if(ev.type == SDL_EVENT_MOUSE_BUTTON_UP and ev.button.button == SDL_BUTTON_LEFT)
+	if(ev.type == SDL_EVENT_MOUSE_BUTTON_UP and ev.button.button == target_btn)
 	{
 		m_is_down = false;
 		m_is_multi_click = false;
@@ -1417,7 +1430,7 @@ bool drawRect(SDL_Renderer* ren, const SDL_FRect& rect, const SDL_FColor& col, c
 
 
 
-bool drawLine(SDL_Renderer* ren, const Vec2i& pt1, const Vec2i& pt2, const SDL_FColor& col, SDL_BlendMode* b_mode)
+bool drawLine(SDL_Renderer* ren, const Vec2f& pt1, const Vec2f& pt2, const SDL_FColor& col, SDL_BlendMode* b_mode)
 {
 	if(not ren)
 	{
@@ -1454,6 +1467,10 @@ bool drawLine(SDL_Renderer* ren, const Vec2i& pt1, const Vec2i& pt2, const SDL_F
 }
 
 
+//bool drawLine(SDL_Renderer* ren, const Vec2i& pt1, const Vec2i& pt2, const SDL_FColor& col, SDL_BlendMode* b_mode)
+//{
+//	return drawLine(ren, pt1.to<float>(), pt2.to<float>(), col, b_mode);
+//}
 
 
 
