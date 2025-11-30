@@ -4,6 +4,7 @@
 #include <fstream>
 #include <SDL3/SDL.h>
 #include <SDL3_GSlib-Text.hpp>
+#include <SDL3_GSlib-Geo.hpp>
 #include <SFML/Audio.hpp>
 
 #define WIN_W 880
@@ -150,7 +151,7 @@ struct Beats_Viewer
 		int fisrt_drawn_grad_num = static_cast<int>(timer_d/ one__bpm_beat_dur); //Le numéro/rang de la graduation (relatif au début des temps). (Note: deux graduations ont un écrat de 1 (en beat de métronome)).
 
 
-		//Les graduations du côté droit (côté non encore lu).
+		//Les graduations.
 		for(int i=0; i<100; ++i) //Limite arbitraire du nombre max de double graduation.
 		{
 			//Déduction de la position de la graduation (relative au zéro) sur l'axe du temps (affiché à l'écran).
@@ -296,8 +297,11 @@ class Beats_Container //Une file de beat/impact/rythme, unité de temps : micros
 		void setUserFeedbackCallback(void (*userFeedbackCallback)(Beat beat, bool beat_catched, double timing));
 
 		bool userReact();
+	
 
 	protected:
+
+		void virtual childClasses_Restarter() {};
 		
 		std::vector<Beat> m_beats; //Les beats, représentés par leur temps d'arrivée (relatif au au début du morceau), dans l'ordre croissant.
 		uint32_t m_curr_beat_idx=0; //Tête de lecture des beats (représente l'indice du prochain beat à dans la lecture).
@@ -324,8 +328,10 @@ class Beats_Container //Une file de beat/impact/rythme, unité de temps : micros
 		//'timing' (à ne pas en tenir compte si 'beat_catched==false') : en µs, l'écart entre le moment de la réaction de l'utilisateur et la position temporelle du beat; peut être positif ou négatif : négatif si la réaction/click est avant l'arrivé du beat, positif si la réaction/click est après l'arrivé du beat. 
 		
 		uint32_t m_curr_waiting_beat_idx=0; //Représente le beat courant qui attend une réaction (peut être différent du prochain beat à arriver dans la lecture).
-
+		
 };
+
+
 
 
 bool Beats_Container::setPartition(const std::string& file_path)
@@ -365,6 +371,8 @@ bool Beats_Container::setPartition(const std::string& file_path)
 
 	setPartition(m_beats); //Par sécurité pour l'ordre croissant des temps.
 	
+	childClasses_Restarter(); 
+
 	return true;
 }
 
@@ -376,6 +384,8 @@ void Beats_Container::setPartition(const std::vector<Beat>& beats)
 	std::sort(m_beats.begin(), m_beats.end(), [](const Beat& a, const Beat& b){
 		return a.time < b.time;
 	});
+
+	childClasses_Restarter(); 
 }
 
 std::vector<Beat> Beats_Container::getPartition() const {return m_beats;}
@@ -390,6 +400,7 @@ bool Beats_Container::autoPlay(void (*actionCallback)(void))
 	m_timer = 0; //Timer en microseconde.
 	m_curr_beat_idx=0;
 	m_curr_waiting_beat_idx=0;
+	childClasses_Restarter(); 
 
 	if(m_music_is_ready)
 	{
@@ -468,8 +479,6 @@ void Beats_Container::update(double dt) //Arg 'dt' en seconde.
 			}
 		}
 		//Ici on ne regarde que si les beats qui attendent sont arrivés à leur terme. La capture des réaction se fait indépendamment via 'Beats_Container::userReact();'. 
-	
-
 	}
 	else
 		if(m_music_is_ready)
@@ -532,94 +541,187 @@ bool Beats_Container::userReact()
 
 
 
-//===================================================================================
 
 
-struct Beats_Recorder
+class Balloon : public Beats_Container
 {
-	bool m_is_recording = false;
-	uint64_t m_timer=0; //En microseconde.
-	std::vector<Beat> m_last_record;
-	sf::Music m_music;
-	bool m_music_is_ready = false;
+	public:
+		~Balloon() {if(m_bg) SDL_DestroyTexture(m_bg);}
+		void showAnim(SDL_Renderer* ren);
 
-	bool setMusic(const std::string& file_path)
-	{
-		if(not m_music.openFromFile(file_path))
-			return false;
-
-		m_music_is_ready = true;
-		return true;
-	}
-
-	void addBeat(bool record_first_beat, Beat b_model) //Lance l'enregistrement au premier beat (qui commence donc au temps 0).
-	{
-		if(not m_is_recording)
+	protected:
+		void childClasses_Restarter() override
 		{
-			m_last_record.clear();
-			m_timer = 0;
-			m_is_recording = true;
-			
-			if(m_music_is_ready)
-			{
-				m_music.stop();
-				m_music.play();
-			}
-			
-
-			if(not record_first_beat)
-				return;
+			m_anim__curr_beats.clear();
 		}
-		
-		b_model.time = m_timer;
-		m_last_record.push_back(b_model);
-	}
+		//========================================== 
+		//Côté animation/visuel
 
-	void updateRecorder(double dt) //Arg 'dt' en seconde.	
-	{
-		if(not m_is_recording) return;
-		uint64_t µs_dt = static_cast<uint64_t>(dt*1000000.0); //Conversion : seconde en microseconde.
-		m_timer += µs_dt;
-	}
+		bool m_anim_is_init = false;
 
-
-	void stopRecording() 
-	{
-		m_is_recording = false;
-		
-		if(m_music_is_ready)
-			m_music.stop();
-	}
-
-	std::vector<Beat> getLastRecord() const {return m_last_record;}
-
-	bool isRecording() const {return m_is_recording;}	
-
-
-	bool saveLastRecord(const std::string& file_path) const
-	{
-		std::ofstream file(file_path, std::ios::out);
-		
-		if(not file) return false;
-
-		//Organisation du fichier : 
-		//Note: mode == fichier texte
-
-		// En premier : version
-		file << BEAT_STRUCT_Version << "\n";
-		
-		//S'en suit les différentes attributs d'un beat, dans l'ordre qui suit, pour tous les beats.
-		for(const Beat& b : m_last_record)
+		struct Beat_Anim 
 		{
-			file << b.time << ' ';
-			file << static_cast<int>(b.type) << ' ';
-			file << static_cast<int>(b.resp_type) << ' ';
-			file << '\n';
-		}
+			uint32_t beat_idx;
+			int type=0;
+		};
+
+		std::vector<Beat_Anim> m_anim__curr_beats; //Les "pointeurs" des beats qui sont actuellement en animation. Ils sont déterminés à partir de 'm_curr_waiting_beat_idx'. Ils sont censé être rangés dans l'ordre croissant. 
+
+		double m_anim__starting_offset =  (60000000.0 / 145)*4;//1000000; //En µs, l'animation d'un beat commence lorsqu'il lui reste 'm_anim__starting_offset' µs ou moins avant l'arrivé de sa position temporelle au chrono.
+		gs::Random<std::uniform_real_distribution<float>> m_rd;
+
+		SDL_Texture* m_bg=nullptr;
+		std::string m_bg_path="Ress/bg_1.png";
 		
-		return true;
-	}
+
 };
+
+
+void Balloon::showAnim(SDL_Renderer* ren)
+{
+	if(not ren) return;
+
+	if(not m_anim_is_init)
+	{
+		m_rd.setParam(std::uniform_real_distribution<float>::param_type(0.f,100.f));
+		
+		m_bg = gs::loadImg(ren, m_bg_path);
+
+		if(not m_bg) std::cout << "in Balloon::showAnim() : load background error : " << gs::lastError() << '\n';
+
+		m_anim_is_init = true;
+	}
+
+	if(m_status!=PLAYING) return;
+	
+	//On actualise les "pointeurs" vers beats à animer. On prend tous ceux qui sont dans la plage 'm_anim__starting_offset'.
+	
+	for(int i=static_cast<int>(m_anim__curr_beats.size())-1; i>=0; --i)
+	{
+		//Le plus ancien ne peut être avant 'm_curr_waiting_beat_idx'. 
+		if(m_anim__curr_beats.at(i).beat_idx < m_curr_waiting_beat_idx)
+			m_anim__curr_beats.erase(m_anim__curr_beats.begin()+i);
+	}
+
+	int last_curr = m_curr_waiting_beat_idx; if(not m_anim__curr_beats.empty()) last_curr = m_anim__curr_beats.back().beat_idx;
+	
+	if(last_curr >= 0)
+	for(int i=last_curr; i<m_beats.size(); ++i) //On rajoute ceux à rajouter.
+	{
+		const Beat& beat = m_beats.at(i);
+		
+		if(beat.time < m_timer+m_anim__starting_offset) //Si le beat est dans la plage. 
+		{
+			if(m_anim__curr_beats.empty() or m_anim__curr_beats.back().beat_idx < i)
+			{
+				float nb = m_rd.get();
+				int type = 0; if(nb > 50) type = 1;
+				m_anim__curr_beats.push_back({uint32_t(i), type});
+			}
+				
+		}
+		else
+			break;
+
+		//Note: sauf erreur, dans 'm_anim__curr_beats', les indices sont dans l'ordre croissant. 
+	}
+	
+
+
+
+	//Et puis on anime les différents beats. 
+	SDL_RenderTexture(ren, m_bg, nullptr, nullptr);
+
+	gs::Vec2f start_pos = {100,250};
+	gs::Vec2f end_pos = {WIN_W/2, WIN_H/2};
+	
+	for(float i=-1; i<=1; ++i)
+	{
+		gs::drawLine(ren, end_pos-gs::Vec2f{40.f,i}, end_pos+gs::Vec2f{40.f,-i}, {0,0,0,255});
+		gs::drawLine(ren, end_pos-gs::Vec2f{i,400.f}, end_pos+gs::Vec2f{-i,400.f}, {0,0,0,255});
+	}	
+
+	for(auto beat_anim : m_anim__curr_beats)
+	{
+		uint32_t beat_idx = beat_anim.beat_idx;
+
+		if(beat_idx < 0 or beat_idx >= m_beats.size()) //Sécurité
+		{
+			std::cout << "debug: 'beat_idx' invalid : "<< beat_idx << ", m_beats.size() : " << m_beats.size() << '\n'; 
+			continue;
+		}
+
+		const Beat& beat = m_beats.at(beat_idx);
+		
+		#if 0
+		    //Petite animation simple, linéaire, d'un déplacement à trajectoire rectiligne d'un point A vers un point B.
+	
+			//le pourcentage de la progession du beat vers son objectif, en fonction du temps. 0% = est au début, 100% = est à la fin. 
+			float progr =  1.0 - (static_cast<double>(beat.time) - static_cast<double>(m_timer))/ (m_anim__starting_offset);
+	
+			gs::Vec2f curr_pos = start_pos + (end_pos - start_pos)*progr;
+			
+			gs::drawCircle(ren, curr_pos.to<int>(), 38, {255,50,150,150}, true);
+		#endif
+
+		//le pourcentage de la progession du beat vers son objectif, en fonction du temps. 0% = est au début, 100% = est à la fin. 
+		float progr =  1.0 - (static_cast<double>(beat.time) - static_cast<double>(m_timer))/ (m_anim__starting_offset);
+		
+		float begin_x = 0;
+		float begin_y = 0;
+		float target_x = 0;
+		float target_y = 0;
+
+		float fx = 0;
+		float fy = 0;
+
+		float fymin = 0;
+		float fymax = 0;
+		
+		if(beat_anim.type == 0)
+		{
+			begin_x = -5;
+			begin_y = 0;
+			target_x = WIN_W/2;
+			target_y = float(WIN_H)*0.7;
+			
+			fx = (3.1415926f/2.f) * progr;
+			fy = std::sin(fx); //Utilisation de la fonction sinus pour la trajectoire.
+
+			fymin = -1;
+			fymax = 1;
+		}
+		else
+		{
+			begin_x = -5;
+			begin_y = 100;
+			target_x = WIN_W/2;
+			target_y = float(WIN_H)*0.7;
+			
+			fx = gs::changeRange(progr, 0,1, -2,0); 
+			fy = fx*fx; //Utilisation de la fonction carré pour la trajectoire.
+
+			fymin = 0;
+			fymax = 4;
+		}
+
+
+		gs::Vec2f pos = {begin_x+(target_x-begin_x)*progr, begin_y+float(gs::changeRange(fy,fymin,fymax,0, target_y-begin_y))};
+			
+		pos.y = float(WIN_H) - pos.y; //Inversion de l'axe des ordonnées. 
+		
+		float min_radius = 5.f;
+		float max_radius = 38.f;
+		float radius = gs::changeRange(progr, 0,1, min_radius, max_radius);	
+		int thickness = gs::changeRange(progr, 0,1, 1.02, 5);		
+
+		gs::drawCircle(ren, pos.to<int>(), int(radius), {255,50,150,255}, true);
+		gs::drawCircleThickness(ren, pos.to<int>(), int(radius), thickness, {0,10,10,255}, true);
+		
+	}
+}
+
+
 
 
 //===================================================================================
@@ -633,13 +735,10 @@ gs::Mouse_Tracker mouse_left;
 gs::Mouse_Tracker mouse_right;
 gs::Input input;
 
-Beats_Container beats;
-Beats_Recorder b_recorder;
+Balloon beats;
 Beats_Viewer b_viewer;
 
 
-bool show_record = false;
-std::vector<Beat> record;
 
 float show_rect_timer = 0.f;
 SDL_FColor show_rect_col={255.f,0.f,0.f,255.f};
@@ -667,14 +766,8 @@ int main()
 	ThisGame = &game;
 
 	Init(win, ren);
-
 	
-	//sf::Music music;
-    //if (!music.openFromFile("C:/prog_utils/Sounds/Free Sound Effects - Nature Sounds (Royalty free Non Copyrighted Sound Effects).wav")) 
-	//{ std::cout<<"Failed to open file\n"; return 1; }
-    //music.play();
-    //while (music.getStatus() == sf::SoundSource::Playing) { sf::sleep(sf::milliseconds(100)); }
-    //return 0;
+	
 	
 	bool go = true;
 	while(go)
@@ -694,7 +787,7 @@ int main()
 		gs::lastErrorAutomaticLog();
 	}
 
-	printf("App ended\n");
+	
 	SDL_DestroyRenderer(ren);
 	SDL_DestroyWindow(win);
 	SDL_Quit();  
@@ -712,7 +805,7 @@ void Init(SDL_Window* win, SDL_Renderer* ren)
 {	
 	SDL_SetRenderDrawColor(ren, 230u, 80u, 145u, 255u);
 	SDL_SetRenderDrawColor(ren, 255u, 255u, 255u, 255u);
-	SDL_SetRenderDrawColor(ren, 60u, 2u, 20u, 255u);
+	SDL_SetRenderDrawColor(ren, 120u, 42u, 20u, 255u);
 
 	mouse_left.setTargetBtn(true);
 	mouse_right.setTargetBtn(false);
@@ -730,21 +823,14 @@ void Init(SDL_Window* win, SDL_Renderer* ren)
 	}
 
 	beats.setUserFeedbackCallback(playingBeatsStatesAlerter);
-	
-	//beats.setPartition(Beats_Editor::align({5027981, 8360996, 11668884, 14977630, 15825361, 16650542, 18295949, 19133109, 19964559, 21622652, 22476956, 23277727, 24937465, 25741417, 26280706, 26445256, 26614296, 27406620, 28238103, 29853669, 30670077, 31086239, 31565407, 32826357, 33230381, 34020329, 34860024, 35261139, 35672182, 36516154, 37329010, 38158067, 39018983, 39804075, 40652850, 41473028, 43918604, 44338749, 44773866, 46443529, 47223311, 47630980, 48119483, 49764144, 50579316, 50973398, 51408067, 54715042, 56376592, 57178966, 57598981, 58035610, 58852825, 59522068, 59672500, 60500721, 61352801, 62196619, 63408981, 63829070, 64211250, 64648390, 65874274, 66314364, 67111410, 67331982, 67501544, 67777178, 67935687, 68783915, 69610262, 70426651, 70722165, 70858172, 71265786, 72112072, 72916648, 73710925, 73989472, 74123958, 74569064, 75416146, 76230826, 76777415, 76973181, 77335276, 77459839, 77869017, 78712164, 79533925, 79931546, 80363556, 80777149, 81203808, }
-											//, 145, 1));
-	
-
 	beats.setMusic("Ress/Audio/free/Rhythm_base_audio_test_1_145bpm.mp3");
 	beats.setPartition("Beats_rhythm_test1_145bpm.txt");
 	beats.setPartition(Beats_Editor::align(beats.getPartition(), 145, 1));
-	b_viewer.setPartition(beats.getPartition());
-
-	
-	b_recorder.setMusic("Ress/Audio/free/Rhythm_base_audio_test_1_145bpm.mp3");
 	
 	bool success = beat_sound_buff.loadFromFile("C:/Users/julus/Dev/C++/Hosanna/Sounds/Jumping_down.wav");
-
+	
+	b_viewer.setPartition(beats.getPartition());
+	b_viewer.m_area = SDL_FRect(50,20,700,80);
 }
 
 
@@ -801,7 +887,7 @@ void Update(float dt)
 
 	if(mouse_left.clickedDown())
 	{
-		beats.autoPlay(nullptr);//beatCallback);
+		beats.autoPlay(nullptr);
 		b_viewer.play(145);
 	}
 
@@ -811,85 +897,25 @@ void Update(float dt)
 	
 	beats.update(dt);
 	
-
-	if(0) //Côté enregistrement
-	{
-		if(input["space"])
-		{
-			b_recorder.stopRecording();
-			b_recorder.saveLastRecord("Beats_rhythm_test1_145bpm.txt");
-
-			b_viewer.stop();
-			input["space"] = false;
-		}
-		
-		if(mouse_left.clickedDown())
-		{
-			if(not b_viewer.isPlaying())
-				b_viewer.play(145);
-
-			Beat b; b.type = CONSTRUCTION;
-			b_recorder.addBeat(false, b);
-			
-			b_viewer.setPartition(b_recorder.getLastRecord());
-		}
-
-		if(mouse_right.clickedDown())
-		{
-			if(not b_viewer.isPlaying())
-				b_viewer.play(145);
-
-			Beat b; 
-			b.type = EXPECTED_RESPONSE;
-			b.resp_type = CLICK_DOWN;
-			b_recorder.addBeat(false, b);
-
-			b_viewer.setPartition(b_recorder.getLastRecord());
-		}
-		
-		
-		b_recorder.updateRecorder(dt);
-
-
-		//record = b_recorder.getLastRecord();
-		//show_record = true;
-		
-		if(show_record)
-		{
-			show_record = false;
-			
-			std::cout << "\n{";
-			for(Beat b : record)
-			{
-				std::cout << b.time << ", ";
-			}
-			std::cout << "}\n";
-		}
-	}
 }
 
 
 
 void Draw(SDL_Renderer* ren, float dt)
 {
+	beats.showAnim(ren);
+
 	if(show_rect_timer > 0.f)
 	{
-		gs::drawRect(ThisGame->ren(), {400.f, 400.f, 60.f, 60.f}, show_rect_col, true);
+		gs::drawRect(ThisGame->ren(), {WIN_W/2-float(WIN_W)*0.3/2.0, WIN_H-float(WIN_H)*0.2/2.0, float(WIN_W)*0.3, float(WIN_W)*0.2}, show_rect_col, true);
 		show_rect_timer-= dt;
 	}
-
-	b_viewer.updateAndShow(dt, ren);
-}
-
-
-void beatCallback()
-{
-	show_rect_timer = 0.02f; //sec.
 	
-	if(beat_sound.getStatus() == sf::SoundSource::Status::Playing) beat_sound.stop();
+	//b_viewer.updateAndShow(dt, ren); 
 
-	beat_sound.play();
+	
 }
+
 
 
 void playingBeatsStatesAlerter(Beat beat, bool beat_catched, double timing)
@@ -902,7 +928,7 @@ void playingBeatsStatesAlerter(Beat beat, bool beat_catched, double timing)
 	if(beat_catched)
 	{
 		if(timing < 50000/2)
-			show_rect_col = gs::fcolor(0,255,0);
+			show_rect_col = gs::fcolor(0,150,0);
 		else 
 		if(timing < 100000)
 			show_rect_col = gs::fcolor(255,210,0);
@@ -911,9 +937,6 @@ void playingBeatsStatesAlerter(Beat beat, bool beat_catched, double timing)
 	}
 	else 
 		show_rect_col = gs::fcolor(255,0,180);
-
-	
-
 }
 
 

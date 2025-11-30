@@ -1,10 +1,9 @@
 #include "SDL3_GSlib-Text.hpp"
 #include <cctype>
 #include <stack>
-//#include <algorithm>
-//#include <print>
 
-//Maj : 28/10/25 (à moins d'oubli de modifier cette ligne ou autre).
+
+//Maj : 23/11/25 (à moins d'oubli de modifier cette ligne ou autre).
 
 
 
@@ -537,14 +536,7 @@ SDL_Texture* Font::renderMultiLines(std::vector<std::string> text, SDL_Color tex
 
 
 
-//#define prtl  std::println 
-//#define prt  std::print
 
-
-
-// #define ALTGR "altgr"
-// #define LOCK_SHIFT "lock_shift"
-//#define MOUSE_IS_DOWN "mouse_is_down"
 #define UP_ARROW "up_arrow"
 #define DOWN_ARROW "down_arrow"
 #define LEFT_ARROW "left_arrow"
@@ -2474,6 +2466,7 @@ void Blocks_Folder::updateByIndents()
 	int prev_valid_depth = Blocks_Folder::INVALID_DEPTH;
 	int prev_valid_ln_idx = 0;
 	
+	
 	for(int i=0; i<m_lines_depth.size(); ++i)
 	{
 		//On commence par déterminer la profondeur de la ligne courante, en espaces.
@@ -2512,12 +2505,13 @@ void Blocks_Folder::updateByIndents()
 		{
 			int curr_block__header_depth = blocks_stack.top().header_line_depth;
 			
-			while(depth <= curr_block__header_depth) //J'utilise une boucle au lien d'un unique 'if' car une ligne peut être la limite de plus d'un bloc. Ainsi, ça permet de traiter les blocs qui y sont limités. 
+			while(depth <= curr_block__header_depth) //J'utilise une boucle au lieu d'un unique 'if' car une ligne peut être la limite de plus d'un bloc. Ainsi, ça permet de traiter les blocs qui y sont limités. 
 			{
 			
 				Code_Block& completed_block = blocks_stack.top();
-				completed_block.lines_count = i - completed_block.header_line_index -1; // '-1' car on ne compte pas la ligne d'en-tête.
-	
+				//completed_block.lines_count = i - completed_block.header_line_index -1; // '-1' car on ne compte pas la ligne d'en-tête.
+				completed_block.lines_count = prev_valid_ln_idx - completed_block.header_line_index;
+				
 				blocks.push_back(completed_block);
 				blocks_stack.pop();
 				
@@ -2701,7 +2695,19 @@ void Blocks_Folder::takeEdit(te::Text_Win_Action_Type processed_edit, int line_i
 	};
 	
 	
-	auto insertSomeBlock = insertItsBlock;
+	
+	auto insertSomeBlock = [&](int hd_line_index, int now_line_depth){
+		if(now_line_depth <= Blocks_Folder::INVALID_DEPTH)
+		{
+			//gs::lastError("!! Blocks_Folder::takeEdit::insertSomeBlock(), line depth invalid. [block line num : ", std::to_string(hd_line_index+1)+", depth : "+std::to_string(now_line_depth)+"]");
+			//debug
+			std::cout << "!! Blocks_Folder::takeEdit::insertSomeBlock(), line depth invalid. [block line num : "<<hd_line_index+1 <<", depth : " <<now_line_depth <<"]\n";
+			return false;
+		}
+		
+		return insertItsBlock(hd_line_index, now_line_depth);
+	};
+	
 	
 	
 	auto isThisLineAWallForThisBlock = [&](int line_idx, Code_Block& some_block){
@@ -2753,10 +2759,16 @@ void Blocks_Folder::takeEdit(te::Text_Win_Action_Type processed_edit, int line_i
 					
 				if(line_index <=  some_block.header_line_index + some_block.lines_count) //Si la ligne en question est contenue dans ce bloc.
 				{
-					if(now_line_depth <= some_block.header_line_depth and now_line_depth != Blocks_Folder::INVALID_DEPTH)//Si la ligne est désormais moins profonde ou au même niveau que l'en-tête de ce bloc, alors ce bloc se voit limiter par cette ligne.
+					if(now_line_depth <= some_block.header_line_depth)//Si la ligne est désormais moins profonde ou au même niveau que l'en-tête de ce bloc, alors ce bloc se voit limiter par cette ligne.
 					{
-						//On limite ce bloc à cette ligne, sans oublier d'exclure les potentielles lignes "vides" qu'il y aurait entre cette ligne et la dernière ligne à prendre en compte dans ce bloc.
-						int new_lines_count = line_index - some_block.header_line_index -1; // '-1' car la ligne d'en-tête n'est pas comptée.
+						int new_lines_count = some_block.lines_count;
+						
+						if(now_line_depth != Blocks_Folder::INVALID_DEPTH) //On vérifie bien que la ligne est "valide"
+						{
+							//On limite ce bloc à cette ligne, sans oublier d'exclure les potentielles lignes "vides" qu'il y aurait entre cette ligne et la dernière ligne à prendre en compte dans ce bloc.
+							new_lines_count = line_index - some_block.header_line_index -1; // '-1' car la ligne d'en-tête n'est pas comptée.
+						}
+						//sinon si elle n'est plus "valide", on se contente seulement d'enlever les potentielles dernières lignes "vides", car il se peut que cette ligne était la dernière incluse dans ce bloc, et qu'en devenant ainsi "invalide"(aka "vide"), les lignes "vides" contiguës au dessus d'elle ne sont plus à comptabiliser dans le bloc.  
 						
 						
 						//Retrait des potentielles dernières lignes "vides" du bloc.
@@ -2780,7 +2792,7 @@ void Blocks_Folder::takeEdit(te::Text_Win_Action_Type processed_edit, int line_i
 					//Sinon si elle est plus profonde, ça ne change rien pour le bloc qui le contient (si je ne m'abuse).
 					
 				}
-				else if(prev_depth <= some_block.header_line_depth and some_block.header_line_depth < now_line_depth) //Si avant, la ligne était moins (ou également) profonde que l'en-tête de ce bloc, et que maintenant, cette ligne est plus profonde que l'en-tête de ce bloc, alors peut-être que cette ligne lui était une frontière, et si c'est le cas elle ne l'est plus et le laisse "passer"/s'agrandir.
+				else if(prev_depth <= some_block.header_line_depth and (some_block.header_line_depth < now_line_depth or now_line_depth == Blocks_Folder::INVALID_DEPTH)) //Si avant, la ligne était moins (ou autant) profonde que l'en-tête de ce bloc, et que maintenant, cette ligne est plus profonde que l'en-tête de ce bloc (ou "invalide"/"vide"), alors peut-être que cette ligne lui était une frontière, et si c'est le cas elle ne l'est plus et le laisse "passer"/s'agrandir.
 				{
 					bool was_a_wall_for_this_block = isThisLineAWallForThisBlock(line_index, some_block);
 					
@@ -2814,10 +2826,30 @@ void Blocks_Folder::takeEdit(te::Text_Win_Action_Type processed_edit, int line_i
 					
 					extendable_block.lines_count = last_line_idx - extendable_block.header_line_index; //Note: la ligne d'en-tête n'est pas comptabilisée dans '.lines_count'. 
 				
+				
+						//Retrait des potentielles dernières lignes "vides" du bloc.
+						try{
+						int hd_line_index = extendable_block.header_line_index;
+						int new_lines_count = extendable_block.lines_count;
+						
+						for(; hd_line_index+new_lines_count > hd_line_index; --new_lines_count)
+						{
+							if(m_lines_depth.at(hd_line_index+new_lines_count) != Blocks_Folder::INVALID_DEPTH)
+								break;
+						}
+						
+						extendable_block.lines_count = new_lines_count;
+						
+						//debug
+						}catch(std::exception& excep){std::cout << "Excep A _ 'Blocks_Folder::takeEdit()' :"<<excep.what() << "\n";}
+		
+				
+				
 					if(extendable_block.lines_count <= 0) //Si une erreur quelconque s'est produite.
 						vanished_blocks.push_back(location); //On retire le bloc par sécurité.
 					
 					can_be_extended_blocks.erase(can_be_extended_blocks.begin()+j);
+					
 				}
 			}
 		
@@ -2879,7 +2911,7 @@ void Blocks_Folder::takeEdit(te::Text_Win_Action_Type processed_edit, int line_i
 		if(now_line_depth == prev_depth)
 			return;
 		
-		 m_lines_depth.at(line_index) = now_line_depth; //Màj.
+		 m_lines_depth.at(line_index) = now_line_depth; //Mise à jour.
 		
 		
 		//Plusieurs cas de figures se présentent au niveau de l'impact sur la structure des blocs.
@@ -2979,7 +3011,9 @@ void Blocks_Folder::takeEdit(te::Text_Win_Action_Type processed_edit, int line_i
 		
 		//Rajout de bloc si cette ligne en ajoute un.
 		if(line_depth != Blocks_Folder::INVALID_DEPTH)
+		{
 			insertItsBlock(line_index, line_depth);
+		}
 		
 		// (Cette petite partie-ci est peut-être incomplète pour ici).
 		for(int i=line_index-1; i>=0; --i) //Recherche de la première ligne "valide" qui précède.
@@ -3031,8 +3065,10 @@ void Blocks_Folder::takeEdit(te::Text_Win_Action_Type processed_edit, int line_i
 		}
 		
 		
-		std::vector<gs::Vec2i> vanished_blocks; //Pour les blocs qui disparaitraient à la suite de la mise à jour.
+		std::vector<gs::Vec2i> vanished_blocks; //Pour les blocs qui disparaitraient (de manière confirmée) à la suite de la mise à jour.
 		std::vector<gs::Vec2i> can_be_extended_blocks; //Pour les blocs qui ne sont plus limités par cette ligne.
+
+		std::vector<gs::Vec2i> could_be_vanished_blocks; //Pour les blocs qui peuvent disparaitre (de manière non confirmée, mais plutôt à vérifier) à la suite de la mise à jour.
 		
 		
 		//Parcours de tous les blocs, afin de déterminer quels sont ceux qui contiennent la ligne à retirer afin de réduire le compte de lignes, et quels sont ceux qui débutent après la ligne à retirer afin de les remonter. 
@@ -3048,20 +3084,44 @@ void Blocks_Folder::takeEdit(te::Text_Win_Action_Type processed_edit, int line_i
 					can_be_extended_blocks.push_back({i,j});
 				else
 				if(some_block.header_line_index < line_index and line_index <= some_block.header_line_index+some_block.lines_count)
-					some_block.lines_count--;
+				{
+					some_block.lines_count--; 
+					
+					if(some_block.lines_count <= 0)
+						vanished_blocks.push_back({i,j});
+					else
+					{
+						//On vérifie si ce bloc est toujours valide (aka contient au moins une ligne "valide"), car il se peut que cette ligne qui va être retirée était la seule "valide" de ce bloc (et que ce bloc avait des lignes "vides" comme par exemple de simples sauts de ligne).
+						
+						bool at_least_one_valid_ln_remain = false;
+						for(int i2 = some_block.header_line_index+1; i2 <= (some_block.header_line_index+some_block.lines_count) and i2 >= 0 and i2 < m_lines_depth.size(); ++i2)
+						{
+							if(i2 == line_index)
+								continue; //On ne prend donc pas en compte la ligne qui va être retirée.
+							
+							if(m_lines_depth.at(i2) != Blocks_Folder::INVALID_DEPTH)
+							{
+								at_least_one_valid_ln_remain = true;
+								break;
+							}
+						}
+						
+						if(not at_least_one_valid_ln_remain)
+							vanished_blocks.push_back({i,j});
+					}
+				
+				}
 				else
 				if(line_index <= some_block.header_line_index)
 					some_block.header_line_index--;
 				
-				
-				if(some_block.lines_count <= 0)
-					vanished_blocks.push_back({i,j});
 			}
 		}
 		
 		
 		
 		m_lines_depth.erase(m_lines_depth.begin()+line_index);
+		
 		
 		
 		for(int i=line_index-1; i>=0; --i) //Recherche de la première ligne "valide" qui précède.
@@ -3097,6 +3157,16 @@ void Blocks_Folder::takeEdit(te::Text_Win_Action_Type processed_edit, int line_i
 	
 	//else if(processed_edit == NEW_TEXT){} non. 
 	
+	//debug
+	if(0)
+	{
+		for(const Blocks_By_Depth& some_depth_lvl : m_depths)
+		for(const Code_Block& some_block : some_depth_lvl.blocks)
+		{
+			std::cout << some_block.header_line_index+1 << " : "<<some_block.lines_count << "\n";
+		}
+		std::cout << "---------------------------------------------------------\n\n";
+	}
 	
 	}
 	catch(std::exception& excep)
@@ -4045,7 +4115,7 @@ void Text_Window::examineEvents(double dt)
 	if(m_check_mouse)
 	{
 		char clicks_count = -1;
-		bool is_double_click_cond_ok = (m_mouse_tracker.isMultiClick(&clicks_count) and (clicks_count%2 == 0) and not m_mouse_tracker.moved());
+		bool is_double_click_cond_ok = (m_mouse_tracker.isMultiClick(&clicks_count) and (clicks_count%2 == 0) and m_mouse_tracker.last2DownClicksHaveSamePos());
 							  
 		if(m_inputs[MOUSE_CLICKED])
 		{
@@ -4707,7 +4777,7 @@ void Text_Window::updateXScroll()
 		
 		if(active_ln_cursor_x-m_x_scroll > active_ln_size_x)//Cursor est sorti de la zone visible à droite.
 		{
-			m_x_scroll = active_ln_cursor_x-active_ln_size_x+m_common_ptsize*3;//Le +m_common_ptsize*3 est pour avoir une marge.  
+			m_x_scroll = active_ln_cursor_x-active_ln_size_x+m_common_ptsize*4;//Le +m_common_ptsize*4 est pour avoir une marge.  
 		}
 		else 
 		if(active_ln_cursor_x < (m_x_scroll)) //Cursor est sorti de la zone visible à gauche. 
@@ -5558,29 +5628,33 @@ void Text_Window::processSelection(int anchor_line_idx)
 		//float y_scroll = m_y_scroll;
 		float y_scroll = m_blocks_folder.adjustYScroll(m_y_scroll, m_lines_delta); //Prise en compte des lignes pliées
 		
-		int curr_y = m_pos.y - int(y_scroll)%m_lines_delta; //Position de la première ligne actuelle (la plus haute ligne actuellement visible du gs::Text_Window), en pixel, dans l'espace global (dans le renderer).
-		int max_y = m_pos.y + m_size.y-1; //Position, en pixel, de la ligne de pixels la plus basse incluse dans le gs::Text_Window). 
+		int curr_y = m_pos.y - static_cast<int>(y_scroll)%m_lines_delta; //Position de la première ligne actuelle (la plus haute ligne actuellement visible du gs::Text_Window), en pixel, dans l'espace global (dans le renderer).
+		int max_y = m_pos.y + static_cast<int>(m_size.y)-1; //Position, en pixel, de la ligne de pixels la plus basse incluse dans le gs::Text_Window). 
 		bool anchor_line_found=false;
 		//Note: 'curr_y', dans un parcours de haut en bas, représente le haut de la ligne correspodante.  
 		
 		
 		//Comme la sélection peut se faire de haut en bas comme de bas en haut, on va moduler la boucle en fonction.
-		const bool is_up_to_down = (curr_mouse_pos.y - click_pos.y) >= 0; //'is_up_to_down' peut varier lors d'un même click, entre les différents appels de cette méthode (grosso modo à chaque frame que le click est maintenu) (car la souris peut continuer à bouger avec le click maintenu), cependant lors d'un même passage dans cette méthode la valeur doit rester la même, d'où le 'const' pour prévenir cela.
+		const bool is_up_to_down = (curr_mouse_pos.y - click_pos.y) >= 0;  //'is_up_to_down' peut varier lors d'un même click, entre les différents appels de cette méthode (grosso modo à chaque frame que le click est maintenu) (car la souris peut continuer à bouger avec le click maintenu), cependant lors d'un même passage dans cette méthode la valeur doit rester la même, d'où le 'const' pour prévenir cela.
 		int i;
+		
 		
 		if(is_up_to_down) 
 		{
-			i = int(y_scroll)/m_lines_delta; //On débute en haut, et la limite c'est le bas.
+			i = static_cast<int>(y_scroll)/m_lines_delta; //On débute en haut, et la limite c'est le bas.
 		}
 		else
 		{
 			//On débute en bas, et la limite c'est le haut.
 			
-			for(int j = int(y_scroll)/m_lines_delta; j< m_lines.size(); ++j)
+			for(int j = static_cast<int>(y_scroll)/m_lines_delta; j< m_lines.size(); ++j)
 			{	
 				//Parcours des lignes VISIBLES (de haut en bas) jusqu'au dernier.
 				i = j; //Le dernier indice (le dernier 'j') est celui qui sera pris, et donc considéré comme l'indice de la dernière ligne visible actuellement.
-				curr_y += m_lines_delta; // #<B> //En effet 'curr_y' est incrémenté pour le tour suivant (pour la ligne suivante), or 'i' est affecté avec l'indice de la ligne courante, ce qui à la sortie de la boucle cause un décalage entre l'indice courant et la position (de ligne) courante (qui est celle de la ligne qui est juste en bas). Mais ce décalage est avantageux ici car veut parcourir les lignes de bas en haut, ça facilite les choses (puisqu'ainsi 'curr_y' peut être vu (à 1 pixel près) comme la coo y du bas de la ligne d'indice 'i'). 
+				
+				if(not m_blocks_folder.isLineHidden(i))
+					curr_y += m_lines_delta; // #<B> //En effet 'curr_y' est incrémenté pour le tour suivant (pour la ligne suivante), or 'i' est affecté avec l'indice de la ligne courante, ce qui à la sortie de la boucle cause un décalage entre l'indice courant et la position (de ligne) courante (qui est celle de la ligne qui est juste en bas). Mais ce décalage est avantageux ici car veut parcourir les lignes de bas en haut, ça facilite les choses (puisqu'ainsi 'curr_y' peut être vu (à 1 pixel près) comme la coo y du bas de la ligne d'indice 'i'). 
+				
 				if(curr_y > max_y)
 					break;
 			}
@@ -5604,9 +5678,9 @@ void Text_Window::processSelection(int anchor_line_idx)
 		
 		
 		
-		while(isStillLooping()) //Il est important dans la boucle de gérer l'avancement de celle-ci, histoire d'éviter une infinite loop, car 'isStillLooping()' ne fait que vérifier l'état. 
+		while(isStillLooping()) //Note: Il est important dans la boucle de gérer l'avancement de celle-ci, histoire d'éviter une infinite loop, car 'isStillLooping()' ne fait que vérifier l'état. 
 		{
-			if(i==anchor_line_idx) //Si l'on trouve la ligne d'ancrage,
+			if(i==anchor_line_idx) //Si l'on atteint la ligne d'ancrage,
 			{
 				SDL_Rect line_area = m_lines.at(anchor_line_idx).getArea(); //Dans l'espace global (dans le renderer).
 				
@@ -5624,14 +5698,14 @@ void Text_Window::processSelection(int anchor_line_idx)
 			else
 			if(anchor_line_found)
 			{
-				bool condition_ok=false;
+				bool is_condition_ok=false;
 				
 				if(is_up_to_down)
-					condition_ok = curr_y <= curr_mouse_pos.y;
+					is_condition_ok = curr_y <= curr_mouse_pos.y;
 				else
-					condition_ok = curr_y > curr_mouse_pos.y; //Si questionnement sur le '>' : voir les lignes (en particulier les commentaires qui vont avec) avec les balises #<B> et #<C> plus haut dans la méthode. 
+					is_condition_ok = curr_mouse_pos.y < curr_y; //Si questionnement sur le '<' : voir les lignes (en particulier les commentaires qui vont avec) avec les balises #<B> et #<C> plus haut dans la méthode. 
 				
-				if(condition_ok)
+				if(is_condition_ok)
 				{
 					//Note: il est important de garder une trace de toute les lignes qui sont sélectionnées à un moment ou un autre, pour pouvoir les désélectionner au besoin, et ne pas avoir de "sélection résiduelle". D'où l'intérêt de les rajouter dans 'm_selected_lines' après qu'elles aient subit une sélection.
 					
@@ -5718,6 +5792,7 @@ void Text_Window::processSelection(int anchor_line_idx)
 				
 				last_l_i_s.ptr->selectTextPortionByPixelsPos_From(is_it_from_begin, curr_mouse_pos.x-line_area.x +m_x_scroll);
 			}
+			
 			
 			//En cas de sélection-s non validée-s, on retire les lignes concernées de la liste des lignes sélectionnées pour éviter des malentendus.
 			if(not last_l_i_s.ptr->haveSelection())

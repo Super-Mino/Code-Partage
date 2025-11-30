@@ -879,7 +879,7 @@ float quality = 50;
 
 	std::vector<SDL_Vertex> vertices;
 	SDL_Vertex common_fields;
-		common_fields.color = col;
+		common_fields.color = SDL_FColor(col.r/255.f, col.g/255.f, col.b/255.f, col.a/255.f);
 		common_fields.tex_coord.x = 1;
 		common_fields.tex_coord.y = 1;
 

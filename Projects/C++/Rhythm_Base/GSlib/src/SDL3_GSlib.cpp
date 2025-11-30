@@ -4,7 +4,7 @@
 #include <bitset>
 
 
-//Version modifiée le 28/10/25 (à moins d'oubli de modifier cette ligne ou autre).
+//Version modifiée le 30/11/25 (à moins d'oubli de modifier cette ligne ou autre).
 
 gs::Game *ThisGame = nullptr; 
 
@@ -140,6 +140,8 @@ Vec2f Mouse_Tracker::getPos() const {return m_pos;}
 
 bool Mouse_Tracker::moved() const {return m_prev_pos != m_pos;}
 
+bool Mouse_Tracker::last2DownClicksHaveSamePos() const {return m_prev_down_pos == m_pos_when_down;}
+
 bool Mouse_Tracker::isMultiClick(char* out__clicks) const 
 {
 	if(out__clicks) 
@@ -178,6 +180,9 @@ void Mouse_Tracker::processEvent(SDL_Event& ev)
 	if(ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN and ev.button.button == target_btn)
 	{
 		m_is_down = true;
+		
+		m_prev_down_pos = m_pos_when_down;
+		
 		m_pos_when_down.x = ev.button.x;
 		m_pos_when_down.y = ev.button.y;
 		
@@ -445,7 +450,7 @@ void Game::changeRenderer(SDL_Renderer *newR, bool destroy)
 
 
 
-SDL_Texture* Game::loadImg(const char *pth)
+SDL_Texture* Game::loadImg(const std::string& pth)
 {
 	if(not isInit)
 	{
@@ -598,7 +603,7 @@ bool Game::isCloseWinEvent(SDL_Event& ev)
 //____________________________________________________________________________________
 
 
-void Game::setWinIcon(const char* path)
+void Game::setWinIcon(const std::string& path)
 {
 	if(not isInit)
 	{
@@ -609,7 +614,7 @@ void Game::setWinIcon(const char* path)
 	if(win_icon != nullptr)
 		SDL_DestroySurface(win_icon);
 
-	win_icon = IMG_Load(path); 
+	win_icon = IMG_Load(path.c_str()); 
 
 	SDL_SetWindowIcon(win(), win_icon);
 }
@@ -618,11 +623,11 @@ void Game::setWinIcon(const char* path)
 //____________________________________________________________________________________
 
 
-void Game::setWinTitle(const char* new_title)
+void Game::setWinTitle(const std::string& new_title)
 {
-	if(win_ != nullptr and new_title != nullptr)
+	if(win_ != nullptr)
 	{
-		SDL_SetWindowTitle(win_, new_title);
+		SDL_SetWindowTitle(win_, new_title.c_str());
 	}
 }
 
@@ -765,16 +770,16 @@ int Game::renY(float percent)
 
 
 
-SDL_Texture* loadImg(SDL_Renderer *renderer, const char* path)
+SDL_Texture* loadImg(SDL_Renderer *renderer, const std::string& path)
 {
 	SDL_Texture *texture = nullptr;
-    texture = IMG_LoadTexture(renderer, path);
+    texture = IMG_LoadTexture(renderer, path.c_str());
    
    
     if(not texture)
     {
     	lastError(std::string("||Error|| in 'gs::loadImg()' : cannot load the image from '") 
-    		+ std::string(path) 
+    		+ path
     		+ std::string("', : ") 
     		+ std::string(SDL_GetError()));
    
@@ -2131,7 +2136,10 @@ bool isFlagPresentIn(int combined_flags, int specifiq_flag)
 
 
 
-
+double changeRange(double val, double origin_min, double origin_max, double target_min, double target_max) 
+{
+	return target_min + (val - origin_min)/(origin_max - origin_min) * (target_max - target_min);
+};
 
 
 

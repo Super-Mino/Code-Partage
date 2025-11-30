@@ -1,7 +1,7 @@
 #ifndef _SDL3_GSlib_HPP_
 #define _SDL3_GSlib_HPP_
 //27/08/24
-//version modifiée le 28/10/25 (à moins d'oubli de modifier cette ligne ou autre). Première version de cette lib : 18/11/22
+//version modifiée le 30/11/25 (à moins d'oubli de modifier cette ligne ou autre). Première version de cette lib : 18/11/22
 /*
 Mises à jour:
 22/07/23:	Ajout de 'Vec2si' et 'Vec2sui', update des 'drawTile()' partout.
@@ -176,6 +176,7 @@ class Mouse_Tracker
 		Vec2f getPosWhenUp() const;
 		Vec2f getPos() const;
 		bool moved() const;
+		bool last2DownClicksHaveSamePos() const;
 		bool isMultiClick(char* out__clicks=nullptr) const;
 		bool isDoubleClick() const;
 		void incrMultiClickCount(char val);
@@ -197,6 +198,7 @@ class Mouse_Tracker
 		bool       m_is_multi_click=false;
 		char       m_clicks_count=0;
 		gs::Vec2f  m_prev_pos; //Sert à savoir s'il y a eu mouvement depuis.
+		gs::Vec2f  m_prev_down_pos; //Sert à savoir si la souris a clické à deux endroits différents sur les deux derniers clicks.
 };
 
 
@@ -247,7 +249,7 @@ class Game
 		/*9*/	
 		void changeRenderer(SDL_Renderer *newR, bool destroy = false);
 		/*A*/	
-		SDL_Texture* loadImg(const char *pth); 
+		SDL_Texture* loadImg(const std::string& pth); 
 		/*B*/	
 		bool drawTile(SDL_Texture* tileset, int x, int y, int dest_w, int dest_h, int srcX, int srcY, int src_w, int src_h, bool isRenderTheTarget = true);
 		/*C*/	
@@ -279,9 +281,9 @@ class Game
 
 		bool isCloseWinEvent(SDL_Event& ev);
 
-		void setWinIcon(const char* path);
+		void setWinIcon(const std::string& path);
 		
-		void setWinTitle(const char* new_title);
+		void setWinTitle(const std::string& new_title);
 		
 		void setAsMainGame();
 
@@ -359,7 +361,7 @@ class Game
 
 
 
-SDL_Texture* loadImg(SDL_Renderer *renderer, const char* path);
+SDL_Texture* loadImg(SDL_Renderer *renderer, const std::string& path);
 
 SDL_Texture* loadImgAndDeleteAColor(SDL_Renderer *renderer, const char *p, Color C);
 
@@ -518,7 +520,7 @@ unsigned int countCharsUTF8(const std::string& str);
 
 bool isFlagPresentIn(int combined_flags, int specifiq_flag);
 
-
+double changeRange(double val, double origin_min, double origin_max, double target_min, double target_max);
 
 
 
@@ -732,7 +734,7 @@ class ParticleBox
 
 template<typename Distr_Type=std::normal_distribution<double>,
 		typename Engine_Type=std::default_random_engine>
-class Random //Marche avec des 
+class Random  
 {
 	public :
 
