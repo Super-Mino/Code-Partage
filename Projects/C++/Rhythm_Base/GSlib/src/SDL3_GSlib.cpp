@@ -2042,7 +2042,7 @@ std::vector<Vec2i> bresenham(int x0, int y0, int x1, int y1)
 
 
 
-unsigned int countCharsUTF8_ByCharHeader(const char& ch, bool& is_ok)
+unsigned int getBytesCountOfUTF8Charac_ByTheCharacHeaderByte(const char& ch, bool& is_ok)
 {
 	is_ok=true;
 	
@@ -2076,7 +2076,7 @@ unsigned int countCharsUTF8_ByCharHeader(const char& ch, bool& is_ok)
 	
 	}catch(std::exception& err)
 	{
-		std::cout << "!! in 'countCharsUTF8_ByCharHeader()' : " << err.what() << '\n';
+		std::cout << "!! in 'getBytesCountOfUTF8Charac_ByTheCharacHeaderByte()' : " << err.what() << '\n';
 		is_ok = false;
 	}
 	
@@ -2084,15 +2084,15 @@ unsigned int countCharsUTF8_ByCharHeader(const char& ch, bool& is_ok)
 }
 
 
-unsigned int countCharsUTF8_ByCharHeader(const char& ch)
+unsigned int getBytesCountOfUTF8Charac_ByTheCharacHeaderByte(const char& ch)
 {
 	bool skip_arg;
-	return countCharsUTF8_ByCharHeader(ch, skip_arg);
+	return getBytesCountOfUTF8Charac_ByTheCharacHeaderByte(ch, skip_arg);
 }
 
 
 
-unsigned int countCharsUTF8(const std::string& str, bool& is_ok)
+unsigned int getUTF8CharsCount(const std::string& str, bool& is_ok)
 {
 	unsigned int utf8_chars_count = 0;
 	unsigned int skip = 0;
@@ -2107,7 +2107,7 @@ unsigned int countCharsUTF8(const std::string& str, bool& is_ok)
 			continue;
 		}
 		
-		unsigned int curr_char_chars_count = countCharsUTF8_ByCharHeader(ch, is_ok);
+		unsigned int curr_char_chars_count = getBytesCountOfUTF8Charac_ByTheCharacHeaderByte(ch, is_ok);
 		if(not is_ok or curr_char_chars_count==0)
 			return 0;
 		
@@ -2119,10 +2119,10 @@ unsigned int countCharsUTF8(const std::string& str, bool& is_ok)
 }
 
 
-unsigned int countCharsUTF8(const std::string& str)
+unsigned int getUTF8CharsCount(const std::string& str)
 {
 	bool skip_arg;
-	return countCharsUTF8(str, skip_arg);
+	return getUTF8CharsCount(str, skip_arg);
 }
 
 

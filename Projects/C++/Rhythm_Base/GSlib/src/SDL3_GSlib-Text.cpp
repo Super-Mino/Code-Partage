@@ -3,7 +3,7 @@
 #include <stack>
 
 
-//Maj : 23/11/25 (à moins d'oubli de modifier cette ligne ou autre).
+//Maj : 07/12/25 (à moins d'oubli de modifier cette ligne ou autre).
 
 
 
@@ -545,6 +545,7 @@ SDL_Texture* Font::renderMultiLines(std::vector<std::string> text, SDL_Color tex
 #define LEFT_SHIFT "left_shift"
 #define RIGHT_SHIFT "right_shift"
 #define BACK_TAB "back_tab"
+#define DELETE "delete" //suppr
 
 namespace gs
 {
@@ -1196,7 +1197,7 @@ bool Text_Line::show(SDL_Renderer* ren, int start_x, char tabulation_size, Vec2i
 
 			//On regarde si le caratère est composé de plusieurs 'char'.
 			bool is_ok=false;
-			unsigned int bytes_count = countCharsUTF8_ByCharHeader(ch, is_ok); //Le nombre d'octets (de 'char') qu'occupe le caractère courant.
+			unsigned int bytes_count = getBytesCountOfUTF8Charac_ByTheCharacHeaderByte(ch, is_ok); //Le nombre d'octets (de 'char') qu'occupe le caractère courant.
 			if(not is_ok or bytes_count==0) //S'il y a erreur:
 				continue;
 				
@@ -1487,7 +1488,7 @@ gs::Vec2ui Text_Line::update(char tabulation_size)
 
 			//On regarde si le caratère est composé de plusieurs 'char'.
 			bool is_ok=false;
-			unsigned int bytes_count = countCharsUTF8_ByCharHeader(ch, is_ok); //Le nombre d'octets (de 'char') qu'occupe le caractère courant.
+			unsigned int bytes_count = getBytesCountOfUTF8Charac_ByTheCharacHeaderByte(ch, is_ok); //Le nombre d'octets (de 'char') qu'occupe le caractère courant.
 			if(not is_ok or bytes_count==0) //S'il y a erreur:
 				continue;
 				
@@ -1699,7 +1700,7 @@ bool Text_Line::addText(const std::string& str, std::string* out, bool allow_cur
 	m_text = m_text.substr(0, index) + str + m_text.substr(index);
 	
 	if(allow_cursor_to_be_moved)
-		m_virtual_cursor_pos += countCharsUTF8(str); // #<A>
+		m_virtual_cursor_pos += getUTF8CharsCount(str); // #<A>
 	
 	m_is_up_to_date = false;
 
@@ -1726,34 +1727,34 @@ bool Text_Line::addText(const std::string& str, std::string* out, bool allow_cur
 }
 
 
-std::string Text_Line::remove(int count_to_left)
+std::string Text_Line::removeFromCursorLeftSide(int count)
 {
 	std::string rmvd_part;
 
 	if(not m_is_up_to_date) 
 	{
-		gs::lastError("||Warning|| in 'Text_Line::remove()', remove not allowed : line not up to date. [Use Text_Line::update() before.] ");
+		gs::lastError("||Warning|| in 'Text_Line::removeFromCursorLeftSide()', removeFromCursorLeftSide not allowed : line not up to date. [Use Text_Line::update() before.] ");
 		return rmvd_part;
 	}
 
-	if(count_to_left < 0) return rmvd_part;
+	if(count <= 0) return rmvd_part;
 
-	for(int i = 0; i<count_to_left; i++)
+	for(int i = 0; i<count; i++)
 	{
 		if(m_virtual_cursor_pos <= 0)
 			return rmvd_part;
 
-		int index = 0; //C'est `m_virtual_cursor_pos' au niveau de std::string(). 
+		int index = 0; //C'est `m_virtual_cursor_pos' mais au niveau de std::string(). 
 		char last_added_char_size=0; //Afin de reculer l'index, de la taille du dernier caractère (utf-8) pour ne pas le prendre en compte (le supprimer).
-		//`last_added_char_size' est généralement soit 1 (pour les ascii), soit 2. 
+		//`last_added_char_size' est généralement soit 1 (pour les ascii), soit 2 (mais peut aller jusqu'à 4). 
 
-		for(int i=0; i<(m_virtual_cursor_pos); i++) //Cumul des tailles de tous les caractères jusqu'à la position du curseur. (Cela afin de retrouver la position du curseur au niveau du std::string). 
+		for(int j=0; j<(m_virtual_cursor_pos); j++) //Cumul des tailles de tous les caractères jusqu'à la position du curseur. (Cela afin de retrouver la position du curseur au niveau du std::string). 
 		{
-			if(i >= int(m_chars_byte_count.size())) //Si tous les caractères ont été parcourus.
+			if(j >= int(m_chars_byte_count.size())) //Si tous les caractères ont été parcourus.
 				break;
 			
 
-			last_added_char_size = m_chars_byte_count.at(i);
+			last_added_char_size = m_chars_byte_count.at(j);
 			index += last_added_char_size;
 		} 
 
@@ -1771,6 +1772,31 @@ std::string Text_Line::remove(int count_to_left)
 	return rmvd_part;
 }
 
+
+
+
+std::string Text_Line::removeFromCursorRightSide(int count)
+{
+	std::string empty_str;
+
+	if(not m_is_up_to_date) 
+	{
+		gs::lastError("||Warning|| in 'Text_Line::removeFromCursorRightSide()', removeFromCursorRightSide not allowed : line not up to date. [Use Text_Line::update() before.] ");
+		return empty_str;
+	}
+	
+	//Le principe ici est de déplacer le curseur de 'count' caractères vers la droite (si possible), et ainsi effacer les caractères qu'on a sauté, par la gauche. Cette technique permet d'éviter de réécrire complètement une méthode qui efface vers la droite, mais plutôt d'utiliser ce qu'on a déjà à disposition ^^.
+	
+	int prev_cursor_pos = getCursorPos();
+	setCursorPos(prev_cursor_pos +count);
+	int new_cursor_pos = getCursorPos(); //Il est important de récupérer la nouvelle position du curseur APRES l'appel de 'setCursorPos()', et non directement par la valeur de 'prev_cursor_pos + count', car 'setCursorPos()' peut limiter la position réellement affectée si la position reçue en argument dépasse la position maximale du curseur. 
+	
+	
+	if(prev_cursor_pos == new_cursor_pos) //S'il n'y a pas moyen de retirer vers la droite. 
+		return empty_str;
+
+	return removeFromCursorLeftSide(new_cursor_pos - prev_cursor_pos); 
+}
 
 
 
@@ -1925,6 +1951,8 @@ bool Text_Line::selectTextPortionByCursorToken(const std::string& ASCII_token_se
 	std::string cursor_ch = getCursorChar();
 	bool one_type_allowed = (cursor_ch.length() == 1 and ASCII_token_separators.contains(cursor_ch.front())); //Si le caractère au niveau du curseur est un séparateur, on ne sélectionne que ce caractère de manière contiguë si possible.
 	
+	std::string end_ln_ch = std::string(1, m_end_line_char);
+	
 	
 	//A gauche 
 	while(min_cursor_pos < curr_left_cursor_pos)
@@ -1959,7 +1987,7 @@ bool Text_Line::selectTextPortionByCursorToken(const std::string& ASCII_token_se
 				break;
 		}
 		else
-		if(ch.length() == 1 and ASCII_token_separators.contains(ch.front())) //Si c'est un séprateur, on arrête là la progression de ce curseur.
+		if((ch.length() == 1 and ASCII_token_separators.contains(ch.front())) or ch == end_ln_ch) //Si c'est un séprateur, on arrête là la progression de ce curseur.
 			break;
 		
 		curr_right_cursor_pos++; // #<B>
@@ -2115,7 +2143,7 @@ bool Text_Line::dealWithSelection(bool it_is_for_replacement, const std::string&
 	}
 	
 	if(it_is_for_replacement)
-		m_virtual_cursor_pos = m_selected_portion_boundaries.x + countCharsUTF8(str); //Faire ceci est utile.
+		m_virtual_cursor_pos = m_selected_portion_boundaries.x + getUTF8CharsCount(str); //Faire ceci est utile.
 	else
 		m_virtual_cursor_pos = m_selected_portion_boundaries.x; //Faire ceci est utile.
 	
@@ -3620,7 +3648,7 @@ bool Text_Window::insertText(const std::string& str, bool when_not_have_selectio
 		
 		if(when_not_have_selection__process_multilines_completion)
 		{
-			int cursor_pos_of_the_latest_compl_ln_ = countCharsUTF8(getLastTextChunk(str, curr_line.getEndLineChar())); //S'il y a des lignes de complétion, ceci permet de mettre le curseur au bon endroit, à la dernière ligne de complétion, au niveau de la fin du text "original" inséré. 
+			int cursor_pos_of_the_latest_compl_ln_ = getUTF8CharsCount(getLastTextChunk(str, curr_line.getEndLineChar())); //S'il y a des lignes de complétion, ceci permet de mettre le curseur au bon endroit, à la dernière ligne de complétion, au niveau de la fin du text "original" inséré. 
 			
 			gs::Vec_Bool_Int res = completeTextInsertion(m_curr_active_line_idx+1, returned_part, record_this_action, 1, cursor_pos_of_the_latest_compl_ln_);
 		
@@ -3887,7 +3915,8 @@ bool Text_Window::processEvent(SDL_Event& event, SDL_Window* win)
 			case SDLK_BACKSPACE : m_inputs["\b", true]; break;
 		    case SDLK_RETURN 	: m_inputs["\n", true]; break;
 		    case SDLK_KP_ENTER 	: m_inputs["\n", true]; break;
-		    case SDLK_TAB 		: 
+		    case SDLK_DELETE    : m_inputs[DELETE, true]; break;
+			case SDLK_TAB 		: 
 				if(not(m_inputs[LEFT_SHIFT] or m_inputs[RIGHT_SHIFT]))
 					m_inputs["\t", true]; 
 				else 
@@ -3963,18 +3992,25 @@ void Text_Window::examineEvents(double dt)
 			processBackTabOnSelection(true);
 		}
 		else
-		if(input_str == "\b" and not this->eraseSelection(true)) //Suppression. Explication, si l'on reçoi ceci : "\b", on appelle d'abord le traitement de la suppression avec sélection, s'il n y a pas de sélection en cours, 'eraseSelection()' renvoie false, ainsi on peut procéder à une suppression classique ici. Sinon s'il y a bien une sélection en cours, 'eraseSelection()' procède et renvoie true (si ça s'est déroulé avec succès, ou du moins que ça a apporté une modification), et on ne traite pas alors cette suppression ici.  
+		if((input_str == "\b" or input_str == DELETE) and not this->eraseSelection(true)) //Suppression. Explication, si l'on reçoi ceci : "\b", on appelle d'abord le traitement de la suppression avec sélection, s'il n y a pas de sélection en cours, 'eraseSelection()' renvoie false, ainsi on peut procéder à une suppression classique ici. Sinon s'il y a bien une sélection en cours, 'eraseSelection()' procède et renvoie true (si ça s'est déroulé avec succès, ou du moins que ça a apporté une modification), et on ne traite pas alors cette suppression ici.  
 		{			
 			unselect();
 			
-			if(m_lines.at(m_curr_active_line_idx).getCursorPos() > 0) //Si, dans la ligne active, le curseur n'est pas tout au début, on procède normalement.
+			if(input_str == DELETE or m_lines.at(m_curr_active_line_idx).getCursorPos() > 0) //Si, dans la ligne active, le curseur n'est pas tout au début, on procède normalement.
 			{
 				int prv_cursor_pos = m_lines.at(m_curr_active_line_idx).getCursorPos();
 
-				if(not m_lines.at(m_curr_active_line_idx).isUpToDate()) //Mise à jour de la ligne si ce n'est pas le cas, pour ne pas empêcher '.remove()'.
+				if(not m_lines.at(m_curr_active_line_idx).isUpToDate()) //Mise à jour de la ligne si ce n'est pas le cas, pour ne pas empêcher '.removeFromCursorLeftSide()'.
 					m_lines.at(m_curr_active_line_idx).update(m_tab_size);
 				
-				std::string rvmd = m_lines.at(m_curr_active_line_idx).remove(1); //Relatif à la position du curseur.
+				std::string rvmd; 
+				
+				// Le bouton "effacer" (ici '\b') pour effacer depuis la côté gauche du curseur, et le bouton "supprimer" (ici DELETE) pour effacer depuis la côté droit du curseur.
+				if(input_str == DELETE) 
+					rvmd = m_lines.at(m_curr_active_line_idx).removeFromCursorRightSide(1); //Relatif à la position du curseur.
+				else
+					rvmd = m_lines.at(m_curr_active_line_idx).removeFromCursorLeftSide(1); //Relatif à la position du curseur.
+
 				
 				pushAction(te::REMOVE_CHAR, m_curr_active_line_idx, rvmd,
 							m_lines.at(m_curr_active_line_idx).getCursorPos(),
@@ -4551,6 +4587,10 @@ bool Text_Window::act(const Text_Win_Action& action, bool record_this_action, Te
 		m_lines.at(line_index).addText(action.str, nullptr, true);
 		
 		m_lines.at(line_index).update(m_tab_size);
+		
+		if(action.new_cursor_pos >= 0)
+			m_lines.at(line_index).setCursorPos(action.new_cursor_pos); //Afin de respecter ce qui est demandé.
+		
 
 		if(record_this_action)
 			pushAction(te::INSERT_CHAR, line_index, action.str,  
@@ -4580,13 +4620,26 @@ bool Text_Window::act(const Text_Win_Action& action, bool record_this_action, Te
 		
 		//Après:
 		int count = prev_cur_pos - action.new_cursor_pos; //A ce stade 'prev_cur_pos' est (normalement) le résulat produit depuis la ligne avec la balise #<A>, et si ça s'est passé correctement, alors on a 'prev_cur_pos == action.begin_cursor_pos'. Mais par mesure de sécurité on prend bien 'prev_cur_pos' pour déterminer 'count', au cas où le curseur n'a pas pu se mettre au niveau de 'action.begin_cursor_pos'. 
-		if(count == 0) return true;
 		if(count < 0) return false;
+		
 
-		m_lines.at(line_index).update(m_tab_size);
-		std::string rvmd = m_lines.at(line_index).remove(count);
+		if(not m_lines.at(line_index).isUpToDate())
+			m_lines.at(line_index).update(m_tab_size);
+		
+		std::string rvmd;
+		
+		if(count == 0) //Quand on veut effacer, mais que le curseur ne doit pas changer de position, on va considérer que l'on demande à effacer depuis le côté droit du curseur.    
+			rvmd = m_lines.at(line_index).removeFromCursorRightSide(static_cast<int>(getUTF8CharsCount(action.str))); // 'action.str' est attendu ici comme contenant une chaîne dont le nombre de caractères (UTF-8) sert à déterminer le nombre de caractères à effacer. Ceci est particulièrement pratique/interessant lors de l'usage d'un redo sur un effacement côté droit (car la partie effacée, stockée dans 'action.str', pourra de nouveau être affacé comme précédemment).  
+		else
+			rvmd = m_lines.at(line_index).removeFromCursorLeftSide(count);
 		
 		m_lines.at(line_index).update(m_tab_size);
+		
+		
+		//Ici (pour REMOVE_CHAR) ceci n'est peut-être pas nécessaire.
+		if(action.new_cursor_pos >= 0)
+			m_lines.at(line_index).setCursorPos(action.new_cursor_pos); //Afin de respecter ce qui est demandé.
+		
 
 		if(record_this_action)
 			pushAction(te::REMOVE_CHAR, line_index, rvmd,
@@ -6175,7 +6228,7 @@ bool Text_Window::replaceSelection(const std::string& str_to_place, bool record_
 	
 	
 	//Traitement du débordement potentiel.
-	int cursor_pos_of_the_latest_compl_ln_=countCharsUTF8(getLastTextChunk(str_to_place, m_lines.at(line_of_the_text_insert__idx).getEndLineChar()));
+	int cursor_pos_of_the_latest_compl_ln_=getUTF8CharsCount(getLastTextChunk(str_to_place, m_lines.at(line_of_the_text_insert__idx).getEndLineChar()));
 	if(line_of_the_text_insert__idx != te::NO_ACTIVE_LINE)
 		completeTextInsertion(line_of_the_text_insert__idx+1, returned_part, record_this_action, curr_action_idx, cursor_pos_of_the_latest_compl_ln_);
 
@@ -6352,7 +6405,7 @@ bool Text_Window::processBackTabOnSelection(bool record_this_action)
 			
 			if(chars_to_remove__count > 0)
 			{
-				std::string rvmd = m_lines.at(m_curr_active_line_idx).remove(chars_to_remove__count); //Relatif à la position du curseur.
+				std::string rvmd = m_lines.at(m_curr_active_line_idx).removeFromCursorLeftSide(chars_to_remove__count); //Relatif à la position du curseur.
 				m_lines.at(m_curr_active_line_idx).update(m_tab_size);
 					
 				if(record_this_action)

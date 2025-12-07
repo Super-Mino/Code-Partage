@@ -1,7 +1,7 @@
 #ifndef _SDL3_GSlib_FONT_HPP_
 #define _SDL3_GSlib_FONT_HPP_
 
-//Version modifiée le 21/10/25 (à moins d'oubli de modifier cette ligne ou autre).
+//Version modifiée le 07/12/25 (à moins d'oubli de modifier cette ligne ou autre).
 
 	#include "SDL3_GSlib.hpp"
 	#include <SDL3/SDL_ttf.h>
@@ -239,7 +239,8 @@ class Text_Line
 
 		//Ces deux méthodes se réfèrent à la position du curseur. 
 		bool addText(const std::string& str, std::string* out=nullptr, bool allow_cursor_to_be_moved=true);
-		std::string remove(int count_to_left);
+		std::string removeFromCursorLeftSide(int count);
+		std::string removeFromCursorRightSide(int count);
 		// bool replace(int count_to_right, std::string str);
 
 
@@ -605,7 +606,7 @@ class Text_Window
 		std::vector<Line_In_Selection>  m_selected_lines; //Celle-ci concerne la selection de texte (souvent illustrer par un "surlignement" dans les éditeurs de texte). 
 		bool                            m_selection_is_up_to_down; //Permet de savoir dans quelle sens se fit la sélection, pour renvoyer le texte dans le bon ordre dans 'gs::Text_Window::getSelection()'.
 		uint32_t                        m_selection_bg_color=0x008A9AFFu; //En RGBA, couleur de l'arrière plan du texte sélectionné.
-		std::string                     m_ASCII_token_separators=" ,;.:\t*-+!/=\"&'()[]%{}<>|`?\\";
+		std::string                     m_ASCII_token_separators=" ,;.:\n\t*-+!/=\"&'()[]%{}<>|`?\\";
 
 		int 					(*_textColoring)(const std::vector<Line__Text_Idx>& lines,
 												std::map<int, std::vector<Text_Print_Rules>> &out_rules, Text_Print_Rules default_rules)=nullptr;

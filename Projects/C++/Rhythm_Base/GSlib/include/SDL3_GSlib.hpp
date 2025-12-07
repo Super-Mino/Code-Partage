@@ -512,10 +512,10 @@ float perlinNoise2D(float x, float y, unsigned int seed=0);
 std::vector<Vec2i> bresenham(int x0, int y0, int x1, int y1); //I.A - Algorithme de Bresenham pour tracer une ligne entre deux points.
 
 
-unsigned int countCharsUTF8_ByCharHeader(const char& ch, bool& is_ok);
-unsigned int countCharsUTF8_ByCharHeader(const char& ch);
-unsigned int countCharsUTF8(const std::string& str, bool& is_ok);
-unsigned int countCharsUTF8(const std::string& str);
+unsigned int getBytesCountOfUTF8Charac_ByTheCharacHeaderByte(const char& ch, bool& is_ok);
+unsigned int getBytesCountOfUTF8Charac_ByTheCharacHeaderByte(const char& ch);
+unsigned int getUTF8CharsCount(const std::string& str, bool& is_ok);
+unsigned int getUTF8CharsCount(const std::string& str);
 
 
 bool isFlagPresentIn(int combined_flags, int specifiq_flag);
