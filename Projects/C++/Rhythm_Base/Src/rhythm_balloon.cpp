@@ -6,10 +6,182 @@
 #include <SDL3_GSlib-Text.hpp>
 #include <SDL3_GSlib-Geo.hpp>
 #include <SFML/Audio.hpp>
+#include <unordered_map>
 #include "anim.h"
 
 #define WIN_W 880
 #define WIN_H 600
+
+
+
+//===================================================================================
+
+struct Text_Looking_Params
+{
+	int style = TTF_STYLE_NORMAL;
+	int ptsize = 25;
+	SDL_Color fg_col={255,180,0,255};
+	SDL_Color bg_col={0,0,0,0};
+};
+
+
+struct Game_Text
+{
+	std::unordered_map<std::string, std::string> txt{
+		{"#too_early","Trop tôt"},
+		{"#good", "Bien"},
+		{"#nice", "Excellent !"},
+		{"#too_late", "Trop tard"},
+		{"#missed", "Manqué"}
+	};
+
+	std::unordered_map<std::string, std::string> look{
+		{"#too_early","#look_0"},
+		{"#good", "#look_1"},
+		{"#nice", "#look_2"},
+		{"#too_late", "#look_0"},
+		{"#missed", "#look_0"}
+	};
+
+	std::unordered_map<std::string, Text_Looking_Params> looks_bank{
+		{"#look_0", Text_Looking_Params(TTF_STYLE_NORMAL, 40, {255,50,0,255}, {0,0,0,0})},
+		{"#look_1", Text_Looking_Params(TTF_STYLE_NORMAL, 50, {80,255,80,255}, {0,0,0,0})},
+		{"#look_2", Text_Looking_Params(TTF_STYLE_NORMAL, 70, {255,190,0,255}, {0,0,0,0})}
+	};
+};
+
+
+
+class Game_Text_Textures
+{
+	public:	
+
+		Game_Text_Textures() = default;
+		~Game_Text_Textures() {
+			for(auto  [text, texture] : m_textures)
+			{
+				if(texture)
+					SDL_DestroyTexture(texture);
+			}
+		}
+
+
+		void loadTexts(gs::Font& font, const Game_Text& texts)
+		{
+			if(not font.isInit())
+			{
+				std::cout << "!! in 'Game_Text_Textures::loadTexts()', given font is not init. \n";
+				return;
+			}
+
+			const int prev_font_style = font.getFontStyle(); //On les récupère pour pouvoir restaurer le font à l'état reçu. 
+			const int prev_font_ptsize = font.getPtsize();
+
+			for(const auto&  [ID, text] : texts.txt)
+			{
+				if(m_textures.contains(ID)) //Je considère ici qu'il n'y a pas lieu d'avoir des changements de texture pour un identifant dont la texture est déjà chargée. 
+					continue; 
+
+
+				//======================= Paramétrage de l'apparence du texte. ==================================================
+				
+				SDL_Texture* texture = nullptr;
+				int style = TTF_STYLE_NORMAL; //Les paramètres d'apparence par défaut, pour le texte.
+				int ptsize = 25;
+				SDL_Color fg_col={255,180,200,255};
+				SDL_Color bg_col={0,0,0,0};
+
+				//On tente de récupérer les paramètres d'apparence assiciés si disponible.
+				if(texts.look.contains(ID)) //1: on regarde si ce texte à un look associé.
+				{
+					const std::string& look_ID =  texts.look.at(ID); 
+	
+					if(texts.looks_bank.contains(look_ID)) //2: on vérifie la présence du look demandé.
+					{
+						const Text_Looking_Params& look = texts.looks_bank.at(look_ID);
+							style = look.style; //Les paramètres d'apparence associé à ce texte.
+							ptsize = look.ptsize;
+							fg_col = look.fg_col;
+							bg_col = look.bg_col;
+					}
+				}
+				
+				gs::te::Font_Rendering_Type rendering_type=gs::te::BLENDED;
+				if(bg_col.r == 0 and bg_col.g == 0 and bg_col.b == 0 and bg_col.a == 0)
+					rendering_type=gs::te::SHADED; //S'il n'y a pas de couleur d'arrière plan, alors il n'y a pas lieu de s'en occuper. 
+				
+				
+				font.setFontStyle(style);
+				font.setPtsize(ptsize);
+
+
+				//======================================================================================================
+
+
+
+				SDL_Rect out__img_size;
+				texture = font.render(text, fg_col, rendering_type, &bg_col, &out__img_size);
+
+				if(not texture)
+				{
+					std::cout << "!! in 'Game_Text_Textures::loadTexts()', texture loading error : " << font.lastError() << ".\n";
+					continue;
+				}
+
+				//S'il les choses sont OK, on rajoute la texture chargée.
+				m_textures[ID] = texture;
+				m_textures_rect[ID] = gs::frect(out__img_size);
+			}
+
+
+			//Restauration du font à l'état reçu. 
+			font.setFontStyle(prev_font_style); 
+			font.setPtsize(prev_font_ptsize);
+		}
+
+		void clear() 
+		{
+			for(auto  [text, texture] : m_textures)
+			{
+				if(texture)
+					SDL_DestroyTexture(texture);
+			}
+
+			m_textures.clear();
+			m_textures_rect.clear();
+		}
+
+		SDL_Texture* getTexture(const std::string& ID, SDL_FRect* out__img_size)
+		{
+			if(not m_textures.contains(ID))
+				return nullptr; 
+
+			if(out__img_size)
+			{
+				if(m_textures_rect.contains(ID)) //Par sécurité seulement, (car d'après 'loadTexts()', si l'id est présent dans 'm_textures', il l'est aussi dans 'm_textures_rect'). 
+				{
+					SDL_FRect rect = m_textures_rect.at(ID);
+					out__img_size->w = rect.w;
+					out__img_size->h = rect.h;
+				}
+				else
+				{
+					out__img_size->w = 100; //Par défaut.
+					out__img_size->h = 100;
+				}
+					
+			}
+
+			return m_textures.at(ID);
+		}
+
+	protected:
+		
+		std::unordered_map<std::string, SDL_Texture*> m_textures;	
+		std::unordered_map<std::string, SDL_FRect> m_textures_rect;	
+
+};
+
 
 //===================================================================================
 
@@ -314,6 +486,10 @@ class Beats_Container //Une file de beat/impact/rythme, unité de temps : micros
 
 		uint64_t m_timer=0; //Chronomètre, en µs, qui commence au début du morceau (à l'appel de autoPlay()).
 		
+		uint32_t m_bonus_time_after_end = 5000000; // En µs, un temps pour laisser tourner le jeu des beats après que le dernier beat soit passé. 
+		uint32_t m_after_end__timer = 0; // Le timer relié à 'm_bonus_time_after_end'.
+
+
 		void (*m_actionCallback)(void)=nullptr; //Un callback (optionnel (mais pas vraiment, on y verrait rien sinon)) à exécuter à chaque beat.
 		
 		sf::Music m_music;
@@ -342,7 +518,12 @@ bool Beats_Container::setPartition(const std::string& file_path)
 {
 	std::ifstream file(file_path, std::ios::in);
 
-	if(not file) return false;
+	if(not file) 
+	{
+		std::cout << "!! in 'Beats_Container::setPartition()', can't open file : '" << file_path << "'.\n";
+		return false;
+	}
+
 	
 	try{
 
@@ -363,9 +544,16 @@ bool Beats_Container::setPartition(const std::string& file_path)
 			file >> resp_type; b.resp_type = static_cast<Response_Type>(resp_type);
 		}
 
-		if(not file.good())
-			return false;
 
+		if(file.eof())
+			break;
+		else
+		if(not file.good())
+		{
+			std::cout << "!! in 'Beats_Container::setPartition()', some error occured while reading the file.\n";
+			return false;
+		}
+			
 
 		m_beats.push_back(b);		
 	}
@@ -421,14 +609,45 @@ void Beats_Container::update(double dt) //Arg 'dt' en seconde.
 {
 	if(m_status==NOTHING) return;
 
+	uint64_t µs_dt = static_cast<uint64_t>(dt*1000000.0); //Conversion : seconde en microseconde.
+
+
 	if(m_status==PLAYING)
 	{
+
+		//Pour éviter d'avoir de grands écarts de timing entre la musique et les beats:
+		{
+			double music_playing_offset = static_cast<double>(m_music.getPlayingOffset().asMicroseconds());
+			double gap = music_playing_offset - static_cast<double>(m_timer);
+			
+			double max_allowed_gap = 10000; //en µs, arbitrairement choisi.
+
+			if(std::abs(gap) > max_allowed_gap) //Si l'écart entre la musique et le jeu dépasse la limite imposée.
+				m_music.setPlayingOffset(sf::microseconds(static_cast<int64_t>(m_timer))); //On réaligne la musique avec le jeu.
+		}
+		
+
+
+
 		if(m_curr_beat_idx >= m_beats.size()) //Si tous les beats sont parcourus.
 		{
+			//On traite d'abord le délai post fin.
+			if(m_after_end__timer < m_bonus_time_after_end)
+			{
+				m_timer += µs_dt;
+				m_after_end__timer += µs_dt;
+				return;
+			}
+	
+
+			//Sinon si ce temps post fin est aussi achevé, on arrête le jeu des beats.
+
 			m_status=NOTHING;
 
 			if(m_music_is_ready)
 				m_music.stop();
+
+			m_after_end__timer = 0;
 
 			return;	
 		}
@@ -489,7 +708,6 @@ void Beats_Container::update(double dt) //Arg 'dt' en seconde.
 			m_music.stop();
 	
 	
-	uint64_t µs_dt = static_cast<uint64_t>(dt*1000000.0); //Conversion : seconde en microseconde.
 	m_timer += µs_dt;
 
 }
@@ -550,13 +768,15 @@ bool Beats_Container::userReact()
 class Balloon : public Beats_Container
 {
 	public:
-		~Balloon() {if(m_bg) SDL_DestroyTexture(m_bg);}
-		void showAnim(SDL_Renderer* ren);
+		~Balloon() {if(m_bg) SDL_DestroyTexture(m_bg); if(m_bg_cloud) SDL_DestroyTexture(m_bg_cloud);}
+		void showAnim(SDL_Renderer* ren, float dt);
 
 	protected:
 		void childClasses_Restarter() override
 		{
 			m_anim__curr_beats.clear();
+			m_cloud_layer1_pos_x = gs::Vec2f(0.f,0.f);
+			m_cloud_layer2_pos_x = gs::Vec2f(0.f,0.f);
 		}
 		//========================================== 
 		//Côté animation/visuel
@@ -575,13 +795,17 @@ class Balloon : public Beats_Container
 		gs::Random<std::uniform_real_distribution<float>> m_rd;
 
 		SDL_Texture* m_bg=nullptr;
-		std::string m_bg_path="Ress/bg_1.png";
+		std::string  m_bg_path="Ress/bg_1.png";
+		SDL_Texture* m_bg_cloud=nullptr;
+		std::string  m_bg_cloud_path="Ress/bg_1_nuages.png";
+		gs::Vec2f m_cloud_layer1_pos_x; // Pour faire un effet défilement infini (sur l'horizontal, de droite à gauche), on va faire défiler le layer. Cependant il'y aura un vide qui va se créer, d'où de manière simplifiée ici, je vais combler le vide avec la même image (ce qui donne "deux images" (pour ce projet une seule image en plus suffit pour combler le vide)). Note : ce code-ci (classe Balloon) n'est pas spécialement fait pour être générique, mais plutôt tend à répondre aux besoins de CE projet-CI en particulier. 
+		gs::Vec2f m_cloud_layer2_pos_x; // Dans ce vecteur le .x est la coo x de l'image de gauche, et le .y est la coo x de l'image de droite. (Pour ces deux layers, les coo sont celle du coin supérieur gauche de l'image).
 		
 
 };
 
 
-void Balloon::showAnim(SDL_Renderer* ren)
+void Balloon::showAnim(SDL_Renderer* ren, float dt)
 {
 	if(not ren) return;
 
@@ -590,8 +814,10 @@ void Balloon::showAnim(SDL_Renderer* ren)
 		m_rd.setParam(std::uniform_real_distribution<float>::param_type(0.f,100.f));
 		
 		m_bg = gs::loadImg(ren, m_bg_path);
+		m_bg_cloud = gs::loadImg(ren, m_bg_cloud_path);
 
 		if(not m_bg) std::cout << "in Balloon::showAnim() : load background error : " << gs::lastError() << '\n';
+		if(not m_bg_cloud) std::cout << "in Balloon::showAnim() : load background cloud error : " << gs::lastError() << '\n';
 
 		m_anim_is_init = true;
 	}
@@ -633,16 +859,65 @@ void Balloon::showAnim(SDL_Renderer* ren)
 
 
 
-	//Et puis on anime les différents beats. 
+	//========= Et puis on anime les différents beats. ==============================
+	
+	//On commence d'abord par l'arrière plan.
 	SDL_RenderTexture(ren, m_bg, nullptr, nullptr);
+	{
+		//Animation parallax des nuages.
+		//Il y'a deux couches de nuages dans la texture, et chacune aura sa vitesse. Dans la texture, elles sont "physiquement" disposées chacune sur une moitié de la texture (moitié supérieure/inférieure). 	
+		
+		SDL_FRect img_rect; SDL_GetTextureSize(m_bg_cloud, &img_rect.w, &img_rect.h);
+		gs::Vec2f cloud_size = {WIN_W, WIN_H/2}; //Pour la destination (affichage).
+	
+		float layer1_x_speed = 10.f; //Choix arbitraire. En pixel par seconde.
+
+		m_cloud_layer1_pos_x.x -= layer1_x_speed*dt; // C'est sur l'image de gauche qu'on fait évoluer la position. Note : vitesse négative en x pour aller de droite à gauche.
+		m_cloud_layer1_pos_x.y = m_cloud_layer1_pos_x.x + cloud_size.x; //En suite on fait suivre celle de droite. Note : on défini la postion de l'image de droite de manière à ce que cette dernière soit juxtaposée à droite de l'image de gauche.
+
+		if(m_cloud_layer1_pos_x.x + cloud_size.x <= 0) // Si toute l'image de gauche est passé hors écran, par le côté gauche de l'écran.
+			std::swap(m_cloud_layer1_pos_x.x, m_cloud_layer1_pos_x.y); //On interchange les rôles entre l'image de gauche et celle de droite.
+
+		SDL_FRect cloud1_dest_left = {m_cloud_layer1_pos_x.x, 0, WIN_W, WIN_H/2};		
+		SDL_FRect cloud1_dest_right = {m_cloud_layer1_pos_x.y, 0, WIN_W, WIN_H/2};
+		
+		SDL_FRect lay1_src = {0.f, 0.f, img_rect.w, img_rect.h/2.f};
+
+		SDL_RenderTexture(ren, m_bg_cloud, &lay1_src, &cloud1_dest_left);
+		SDL_RenderTexture(ren, m_bg_cloud, &lay1_src, &cloud1_dest_right);
+		
+
+
+		//Même démarche pour la deuxième couche.
+
+		float layer2_x_speed = 7.f; //Choix arbitraire. En pixel par seconde.
+
+		m_cloud_layer2_pos_x.x -= layer2_x_speed*dt; // C'est sur l'image de gauche qu'on fait évoluer la position. Note : vitesse négative en x pour aller de droite à gauche.
+		m_cloud_layer2_pos_x.y = m_cloud_layer2_pos_x.x + cloud_size.x; //En suite on fait suivre celle de droite. Note : on défini la postion de l'image de droite de manière à ce que cette dernière soit juxtaposée à droite de l'image de gauche.
+
+		if(m_cloud_layer2_pos_x.x + cloud_size.x <= 0) // Si toute l'image de gauche est passé hors écran, par le côté gauche de l'écran.
+			std::swap(m_cloud_layer2_pos_x.x, m_cloud_layer2_pos_x.y); //On interchange les rôles entre l'image de gauche et celle de droite.
+
+		SDL_FRect cloud2_dest_left = {m_cloud_layer2_pos_x.x, 0, WIN_W, WIN_H/2};		
+		SDL_FRect cloud2_dest_right = {m_cloud_layer2_pos_x.y, 0, WIN_W, WIN_H/2};
+		
+		SDL_FRect lay2_src = {0.f, img_rect.h/2.f, img_rect.w, img_rect.h/2.f};
+
+		SDL_RenderTexture(ren, m_bg_cloud, &lay2_src, &cloud2_dest_left);
+		SDL_RenderTexture(ren, m_bg_cloud, &lay2_src, &cloud2_dest_right);
+	}
+	
+	
+	
+	
 
 	gs::Vec2f start_pos = {100,250};
 	gs::Vec2f end_pos = {WIN_W/2, WIN_H/2};
 	
 	for(float i=-1; i<=1; ++i)
 	{
-		gs::drawLine(ren, end_pos-gs::Vec2f{40.f,i}, end_pos+gs::Vec2f{40.f,-i}, {0,0,0,255});
-		gs::drawLine(ren, end_pos-gs::Vec2f{i,400.f}, end_pos+gs::Vec2f{-i,400.f}, {0,0,0,255});
+		//gs::drawLine(ren, end_pos-gs::Vec2f{40.f,i}, end_pos+gs::Vec2f{40.f,-i}, {0,0,0,255});
+		gs::drawLine(ren, end_pos-gs::Vec2f{i,400.f}, end_pos+gs::Vec2f{-i,400.f}, {255,220,0,255});
 	}	
 
 	for(auto beat_anim : m_anim__curr_beats)
@@ -740,23 +1015,27 @@ gs::Font font;
 gs::Mouse_Tracker mouse_left;
 gs::Mouse_Tracker mouse_right;
 gs::Input input;
+gs::Random<std::normal_distribution<float>> normal_rand;
 
 Balloon beats;
 Beats_Viewer b_viewer;
 
 
-
-float show_rect_timer = 0.f;
-SDL_FColor show_rect_col={255.f,0.f,0.f,255.f};
 sf::SoundBuffer balloon_explo_sound_buff;
 sf::Sound balloon_explo_sound1(balloon_explo_sound_buff);
 sf::Sound balloon_explo_sound2(balloon_explo_sound_buff);
 
+Game_Text TXT;
+Game_Text_Textures txt_imgs;
 
 SDL_Texture* pic_img=nullptr;
 SDL_Texture* balloon_frags_img=nullptr;
 
 std::vector<Animation> anims;
+
+enum Playing_Mark{NONE, TOO_EARLY, GOOD, NICE, TOO_LATE, MISSED};
+Playing_Mark last_mark; //Concerne les beats lors du jeu. 
+
 
 void Init(SDL_Window* win, SDL_Renderer* ren);void InputGestion(bool& boolvar);void Update(float dt);
 void Draw(SDL_Renderer* ren, float dt);
@@ -767,7 +1046,7 @@ int addAnim(gs::Vec2f origin_pos, std::string name);
 int main() 
 {
 	gs::Game game; 
-	game.InitSDLEngine(WIN_W, WIN_H, "Rhythm Base");
+	game.InitSDLEngine(WIN_W, WIN_H, "Rhythm Balloon");
 	if(not game.isGameInit())
 	{
 		std::cout << "game.InitSDLEngine() failled\n";
@@ -822,16 +1101,17 @@ void Init(SDL_Window* win, SDL_Renderer* ren)
 	mouse_left.setTargetBtn(true);
 	mouse_right.setTargetBtn(false);
 
+	normal_rand.initForFormattedGet(normal_rand.getParam().mean(), normal_rand.getParam().stddev(), "normal");
+
 	//===============================================
-	std::string font_path = "C:/Users/julus/Dev/C++/Main/Projects/Text_editor/ress/Font/consola.ttf";
+	std::string font_path = "C:/prog_utils/Aru_fonts/Carter_One/CarterOne-Regular.ttf";
 	if(not util_ln.initAll(ren, font, str_bank, font_path.c_str(), 35, gs::u32RGBA(20,24,15,255)))
 	{
-		std::cout << "Font init failled : " <<font_path<<"\n";
+		std::cout << "Font init failled, font path : " <<font_path<<"\n";
 	}
 	else
 	{
-		util_ln.setText("Coucou alphabet Jklm 0123456789 _[{");
-		util_ln.setPos({200,200});
+		txt_imgs.loadTexts(font, TXT);
 	}
 
 	beats.setUserFeedbackCallback(playingBeatsStatesAlerter);
@@ -939,15 +1219,7 @@ void Update(float dt)
 void Draw(SDL_Renderer* ren, float dt)
 {
 	
-	beats.showAnim(ren);
-	
-	if(show_rect_timer > 0.f)
-	{
-		gs::drawRect(ThisGame->ren(), {WIN_W/2-float(WIN_W)*0.3/2.0, WIN_H-float(WIN_H)*0.2/2.0, float(WIN_W)*0.3, float(WIN_W)*0.2}, show_rect_col, true);
-		show_rect_timer-= dt;
-	}
-		
-	//b_viewer.updateAndShow(dt, ren); 
+	beats.showAnim(ren, dt);
 	
 	
 	for(Animation& anim : anims)
@@ -959,21 +1231,48 @@ void Draw(SDL_Renderer* ren, float dt)
 
 void playingBeatsStatesAlerter(Beat beat, bool beat_catched, double timing)
 {
-	show_rect_timer = 0.3;
-
+	short timing_sign = gs::sign(timing);
 	timing = abs(timing);
 
 	
 	if(beat_catched)
 	{
 		if(timing < 50000/2)
-			show_rect_col = gs::fcolor(0,150,0);
+		{
+			last_mark = NICE; 
+			addAnim({float(WIN_W)*0.5f, float(WIN_H)*0.5f}, "#nice");
+		}
 		else 
 		if(timing < 100000)
-			show_rect_col = gs::fcolor(255,210,0);
+		{
+			last_mark = GOOD; 
+			addAnim({float(WIN_W)*0.5f, float(WIN_H)*0.7f}, "#good");
+		}	
 		else
-			show_rect_col = gs::fcolor(255,0,0);
+		{
+			std::string anim_name = "#too_early";
 
+			if(timing_sign > 0)
+			{
+				last_mark = TOO_LATE; 
+				anim_name = "#too_late";
+			}
+			else
+				last_mark = TOO_EARLY;
+		
+			
+
+			gs::Vec2f anim_origin = {normal_rand.get(beat.last_pos_in_anim.x, 200.f), 
+									normal_rand.get(beat.last_pos_in_anim.y, 150.f)};
+			
+			float min_x=float(WIN_W)*0.2f, max_x=float(WIN_W)*0.8f; 
+			float min_y=float(WIN_H)*0.2f, max_y=float(WIN_H)*0.8f;
+
+			if(anim_origin.x<min_x) anim_origin.x=min_x; else if(anim_origin.x>max_x) anim_origin.x=max_x;
+			if(anim_origin.y<min_y) anim_origin.y=min_y; else if(anim_origin.y>max_y) anim_origin.y=max_y;
+
+			addAnim(anim_origin, anim_name);
+		}
 
 		addAnim(beat.last_pos_in_anim, "balloon_boom"); 
 		addAnim(beat.last_pos_in_anim, "pic"); 
@@ -994,7 +1293,7 @@ void playingBeatsStatesAlerter(Beat beat, bool beat_catched, double timing)
 		
 	}
 	else 
-		show_rect_col = gs::fcolor(255,0,180);
+		last_mark = MISSED;
 }
 
 
@@ -1050,7 +1349,54 @@ int addAnim(gs::Vec2f origin_pos, std::string name)
 
 			anim.setAnimOriginPos(origin_pos);
 			anim.startAnimation();
-	
+	}
+	else
+	if(name == "#too_early" or name == "#too_late")
+	{
+		SDL_FRect r;
+		SDL_Texture* img = txt_imgs.getTexture(name, &r);
+
+		anims.emplace_back(); //Rajout d'une animation.
+		Animation& anim = anims.back(); //On la récupère afin de la modifier. 
+			anim.addItem(true, true, true); //On rajoute un objet/élément dans cette animation (que l'on va localiser par son indice (qui est par ordre d'arrivé)).
+				anim.setItemProperties(0, img, {r.w,r.h}); //On associe une image à cet élément (élément d'indice 0).
+				anim.addAnimStep(0, 0.25f, {0.f,0.f},{0.f,0.f},  0.f,25); //Ensuite, on défini les différentes étapes d'animation de cet élément. 
+				anim.addAnimStep(0, 0.25f, {0.f,0.f},{0.f,0.f},  0.f,0);
+				anim.addAnimStep(0, 0.25f, {0.f,0.f},{0.f,0.f},  0.f,-25);
+				anim.addAnimStep(0, 0.25f, {0.f,0.f},{0.f,0.f},  0.f,0);
+				anim.addAnimStep(0, 0.3f, {0.f,0.f},{0.f,-30.f},  0.f,0, {1.f,1.f},{2.5f,1.5f});
+			anim.setAnimOriginPos(origin_pos); //On règle aussi le repère de l'animation.
+			anim.startAnimation(); //Enfin on lance cet animation.
+	}
+	else
+	if(name == "#good")
+	{
+		SDL_FRect r;
+		SDL_Texture* img = txt_imgs.getTexture(name, &r);
+
+		anims.emplace_back(); //Rajout d'une animation.
+		Animation& anim = anims.back(); //On la récupère afin de la modifier. 
+			anim.addItem(true, true, true); //On rajoute un objet/élément dans cette animation (que l'on va localiser par son indice (qui est par ordre d'arrivé)).
+				anim.setItemProperties(0, img, {r.w,r.h}); //On associe une image à cet élément (élément d'indice 0).
+				anim.addAnimStep(0, 1.f, {0.f,0.f},{0.f,-20.f},  0.f,0.f, {1.8f,1.8f},{0.0f,0.0f}); //Ensuite, on défini les différentes étapes d'animation de cet élément. 
+			anim.setAnimOriginPos(origin_pos); //On règle aussi le repère de l'animation.
+			anim.startAnimation(); //Enfin on lance cet animation.
+	}
+	else
+	if(name == "#nice")
+	{
+		SDL_FRect r;
+		SDL_Texture* img = txt_imgs.getTexture(name, &r);
+
+		anims.emplace_back(); //Rajout d'une animation.
+		Animation& anim = anims.back(); //On la récupère afin de la modifier. 
+			anim.addItem(true, true, true); //On rajoute un objet/élément dans cette animation (que l'on va localiser par son indice (qui est par ordre d'arrivé)).
+				anim.setItemProperties(0, img, {r.w,r.h}); //On associe une image à cet élément (élément d'indice 0).
+				anim.addAnimStep(0, 0.1f, {0.f,0.f},{0.f,0.f},  -25.f,10.f, {0.f,0.f},{1.3f,1.3f}); //Ensuite, on défini les différentes étapes d'animation de cet élément. 
+				anim.addAnimStep(0, 0.3f, {0.f,0.f},{0.f,0.f},  0.f,-5.f, {0.f,0.f},{0.8f,0.8f});
+				anim.addAnimStep(0, 0.3f, {0.f,0.f},{0.f,0.f},  0.f,0.f, {0.f,0.f},{1.f,1.f});
+			anim.setAnimOriginPos(origin_pos); //On règle aussi le repère de l'animation.
+			anim.startAnimation(); //Enfin on lance cet animation.
 	}
 
 	return 0;
