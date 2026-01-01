@@ -35,8 +35,11 @@ struct Params
 	{
 		std::string path = std::string(path_buff);
 		
-		if(autoSize_helper__frames_count == gs::Vec2i(0,0))
+		if(autoSize_helper__frames_count.x <= 0 or autoSize_helper__frames_count.y <= 0)
+		{
+			gs::lastError("In 'Params::loadSpritesheet_autoSize()' : both column and row must be > 0.");
 			return;
+		}
 	
 		if(spr_sheet.load(ren, path, gs::Vec2us(1, 1), frame_delay))
 			loaded_spr_sheet_path = path;
@@ -276,11 +279,11 @@ void GuiPart(SDL_Renderer* ren)
 		float cell_h = frame_size.y * zoom;
 
 		for(float x = top_left.x; x < bottom_right.x; x+=cell_w) //Lignes verticales
-			draw_list->AddLine(ImVec2(x, top_left.y), ImVec2(x, bottom_right.y), IM_COL32(255,255,255,200));
+			draw_list->AddLine(ImVec2(x, top_left.y), ImVec2(x, bottom_right.y), IM_COL32(230,230,230,200));
 		
 		
 		for(float y = top_left.y; y < bottom_right.y; y+=cell_h) //Lignes horizontales
-			draw_list->AddLine(ImVec2(top_left.x, y), ImVec2(bottom_right.x, y), IM_COL32(255,255,255,200));
+			draw_list->AddLine(ImVec2(top_left.x, y), ImVec2(bottom_right.x, y), IM_COL32(230,230,230,200));
 		
 		
 		//Mise à l'évidence des frames choisies dans la grille.
@@ -290,7 +293,7 @@ void GuiPart(SDL_Renderer* ren)
 			ImVec2 rect_max = rect_min + ImVec2(cell_w, cell_h);
 		
 			draw_list->AddRect(rect_min, rect_max, IM_COL32(0,200,0,255), 0.f, 0, 3.f);
-			draw_list->AddText(rect_min+ImVec2(4,4), IM_COL32(230,230,230,255), std::to_string(number_to_show).c_str());
+			draw_list->AddText(rect_min+ImVec2(4,4), IM_COL32(200,200,200,255), std::to_string(number_to_show).c_str());
 		};
 		
 		if(frames_count.x) //Sécurité
